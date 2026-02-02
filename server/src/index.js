@@ -7,23 +7,105 @@ import { z } from "zod";
 
 import { createDb } from "./db.js";
 import { nowIso, slugify, safeJsonParse } from "./utils.js";
-import { scrapeAmazonProduct } from "./scrape/amazon.js";
+import { scrapeAmazonProduct, buildAmazonUrl } from "./scrape/amazon.js";
 import { generateArticleHtml } from "./services/articleGenerator.js";
 import { resolveLlmConfig } from "./services/llmClient.js";
 import { getRelatedProducts } from "./services/relatedProducts.js";
 
-const PORT = process.env.PORT || 5177;
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import cookieParser from "cookie-parser";
 
+// ...
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-123";
+
+const PORT = process.env.PORT || 5177;
 const app = express();
 const db = createDb();
 const llmConfig = resolveLlmConfig();
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
+app.use(cookieParser());
 app.use(morgan("dev"));
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, time: nowIso() });
+});
+
+// -- AUTH --
+app.get("/api/auth/setup-check", (req, res) => {
+  const existing = db.prepare("SELECT count(*) as count FROM users").get();
+  res.json({ canSetup: existing.count === 0 });
+});
+
+app.post("/api/auth/setup", async (req, res) => {
+  // Only allow if no users exist
+  const existing = db.prepare("SELECT count(*) as count FROM users").get();
+  if (existing.count > 0) return res.status(403).json({ error: "Setup already completed" });
+
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: "Missing fields" });
+
+  const hash = await bcrypt.hash(password, 10);
+  const id = nanoid();
+  db.prepare("INSERT INTO users (id, username, password, created_at) VALUES (?, ?, ?, ?)").run(id, username, hash, nowIso());
+
+  res.json({ success: true });
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const { username, password } = req.body;
+  const user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).json({ error: "Credenciales inválidas" });
+  }
+
+  const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user.id, username: user.username } });
+});
+
+app.get("/api/auth/me", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: "No token" });
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.json({ user: decoded });
+  } catch (err) {
+    res.status(401).json({ error: "Invalid token" });
+  }
+});
+
+// -- NEWSLETTER --
+app.post("/api/newsletter/subscribe", (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes('@')) return res.status(400).json({ error: "Email inválido" });
+
+  try {
+    const id = nanoid();
+    db.prepare("INSERT INTO newsletter_subscribers (id, email, created_at) VALUES (?, ?, ?)").run(id, email, nowIso());
+    res.json({ success: true });
+  } catch (err) {
+    if (err.message.includes("UNIQUE")) return res.json({ success: true }); // Silent success
+    res.status(500).json({ error: "Error registering" });
+  }
+});
+
+app.get("/api/newsletter/subscribers", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: "No token" });
+
+  const token = authHeader.split(' ')[1];
+  try {
+    jwt.verify(token, JWT_SECRET);
+    const rows = db.prepare("SELECT * FROM newsletter_subscribers ORDER BY created_at DESC").all();
+    res.json(rows);
+  } catch (err) {
+    res.status(401).json({ error: "Invalid token" });
+  }
 });
 
 app.get("/", (_req, res) => {
@@ -104,22 +186,82 @@ app.get("/api/categories", (_req, res) => {
 app.post("/api/categories", (req, res) => {
   const schema = z.object({
     name: z.string().min(2),
-    parentId: z.string().nullable().optional()
+    description: z.string().optional(),
+    parentId: z.string().nullable().optional(),
+    seoTitle: z.string().optional(),
+    seoKeywords: z.string().optional(),
+    seoDescription: z.string().optional(),
+    slug: z.string().optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const id = nanoid();
   const name = parsed.data.name;
-  const slug = slugify(name);
+  const slug = parsed.data.slug || slugify(name);
   const createdAt = nowIso();
   const parentId = parsed.data.parentId || null;
 
-  db.prepare(
-    "INSERT INTO categories (id, name, slug, parent_id, created_at) VALUES (?, ?, ?, ?, ?)"
-  ).run(id, name, slug, parentId, createdAt);
+  try {
+    db.prepare(
+      `INSERT INTO categories 
+       (id, name, slug, parent_id, created_at, description, seo_title, seo_keywords, seo_description) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      name,
+      slug,
+      parentId,
+      createdAt,
+      parsed.data.description || null,
+      parsed.data.seoTitle || null,
+      parsed.data.seoKeywords || null,
+      parsed.data.seoDescription || null
+    );
+    res.json({ id, name, slug, parentId, createdAt });
+  } catch (err) {
+    if (err.message.includes("no such column: description")) {
+      // Fallback for missing column if migration didn't run for 'description' - though we should fix migration
+      // Ideally we should have ensured columns exist.
+      // For now, let's just log and fail or retry without description? 
+      // Better to assume migration ran. I'll add description to migration next if needed.
+      console.error("DB Error (missing col?):", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    throw err;
+  }
+});
 
-  res.json({ id, name, slug, parentId, createdAt });
+app.put("/api/categories/:id", (req, res) => {
+  const schema = z.object({
+    name: z.string().min(2),
+    description: z.string().optional(),
+    parentId: z.string().nullable().optional(),
+    slug: z.string().optional(),
+    seoTitle: z.string().optional(),
+    seoKeywords: z.string().optional(),
+    seoDescription: z.string().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { name, description, parentId, slug, seoTitle, seoKeywords, seoDescription } = parsed.data;
+  const finalSlug = slug || slugify(name);
+
+  db.prepare(
+    `UPDATE categories 
+     SET name = ?, description = ?, parent_id = ?, slug = ?, seo_title = ?, seo_keywords = ?, seo_description = ?
+     WHERE id = ?`
+  ).run(name, description || null, parentId || null, finalSlug, seoTitle || null, seoKeywords || null, seoDescription || null, req.params.id);
+
+  res.json({ ok: true });
+});
+
+app.get("/api/categories/slug/:slug", (req, res) => {
+  const customSlug = req.params.slug;
+  const category = db.prepare("SELECT * FROM categories WHERE slug = ?").get(customSlug);
+  if (!category) return res.status(404).json({ error: "Category not found" });
+  res.json(category);
 });
 
 // Tags
@@ -199,19 +341,21 @@ app.get("/api/articles", (req, res) => {
   res.json(rows);
 });
 
-app.get("/api/articles/:id", (req, res) => {
-  const row = db.prepare("SELECT * FROM articles WHERE id = ?").get(req.params.id);
+app.get("/api/articles/:idOrSlug", (req, res) => {
+  const row = db.prepare("SELECT * FROM articles WHERE id = ? OR slug = ?").get(req.params.idOrSlug, req.params.idOrSlug);
   if (!row) return res.status(404).json({ error: "not found" });
+
+  const id = row.id;
 
   const tags = db.prepare(
     `SELECT t.id FROM tags t
      INNER JOIN article_tags at ON at.tag_id = t.id
      WHERE at.article_id = ?`
-  ).all(req.params.id).map(t => t.id);
+  ).all(id).map(t => t.id);
 
   const categoryIds = db.prepare(
     `SELECT category_id FROM article_categories WHERE article_id = ?`
-  ).all(req.params.id).map(c => c.category_id);
+  ).all(id).map(c => c.category_id);
 
   res.json({ ...row, tags, categoryIds });
 });
@@ -226,6 +370,11 @@ app.post("/api/articles", (req, res) => {
     productId: z.string().optional(),
     tags: z.array(z.string()).optional(),
     scheduledAt: z.string().optional(),
+    imageUrl: z.string().url().optional().or(z.literal("")),
+    slug: z.string().optional(),
+    seoTitle: z.string().optional(),
+    seoKeywords: z.string().optional(),
+    canonicalUrl: z.string().optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -234,12 +383,14 @@ app.post("/api/articles", (req, res) => {
   const id = nanoid();
   const createdAt = nowIso();
   const updatedAt = createdAt;
-  const slug = slugify(parsed.data.title);
+  const slug = parsed.data.slug || slugify(parsed.data.title);
+
+  const mainCategoryId = parsed.data.categoryIds?.[0] || null;
 
   db.prepare(
     `INSERT INTO articles
-     (id, title, slug, status, html, meta_description, product_id, category_id, created_at, updated_at, published_at, scheduled_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     (id, title, slug, status, html, meta_description, product_id, category_id, created_at, updated_at, published_at, scheduled_at, image_url, seo_title, seo_keywords, canonical_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     parsed.data.title,
@@ -248,11 +399,15 @@ app.post("/api/articles", (req, res) => {
     parsed.data.html,
     parsed.data.metaDescription || null,
     parsed.data.productId || null,
-    parsed.data.categoryId || null,
+    mainCategoryId,
     createdAt,
     updatedAt,
     parsed.data.status === "published" ? createdAt : null,
-    parsed.data.scheduledAt || null
+    parsed.data.scheduledAt || null,
+    parsed.data.imageUrl || null,
+    parsed.data.seoTitle || null,
+    parsed.data.seoKeywords || null,
+    parsed.data.canonicalUrl || null
   );
 
   const tags = parsed.data.tags || [];
@@ -279,6 +434,11 @@ app.put("/api/articles/:id", (req, res) => {
     categoryIds: z.array(z.string()).optional(),
     tags: z.array(z.string()).optional(),
     scheduledAt: z.string().optional(),
+    imageUrl: z.string().url().optional().or(z.literal("")),
+    slug: z.string().optional(),
+    seoTitle: z.string().optional(),
+    seoKeywords: z.string().optional(),
+    canonicalUrl: z.string().optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -289,11 +449,14 @@ app.put("/api/articles/:id", (req, res) => {
 
   const updatedAt = nowIso();
   const title = parsed.data.title ?? existing.title;
-  const slug = slugify(title);
+  const slug = parsed.data.slug ?? (parsed.data.title ? slugify(parsed.data.title) : existing.slug);
+
+  // Use the first category as the main category_id for the articles table
+  const mainCategoryId = parsed.data.categoryIds?.[0] ?? existing.category_id;
 
   db.prepare(
     `UPDATE articles
-     SET title = ?, slug = ?, status = ?, html = ?, meta_description = ?, category_id = ?, updated_at = ?, published_at = ?, scheduled_at = ?
+     SET title = ?, slug = ?, status = ?, html = ?, meta_description = ?, category_id = ?, updated_at = ?, published_at = ?, scheduled_at = ?, image_url = ?, seo_title = ?, seo_keywords = ?, canonical_url = ?
      WHERE id = ?`
   ).run(
     title,
@@ -301,10 +464,14 @@ app.put("/api/articles/:id", (req, res) => {
     parsed.data.status ?? existing.status,
     parsed.data.html ?? existing.html,
     parsed.data.metaDescription ?? existing.meta_description,
-    parsed.data.categoryId ?? existing.category_id,
+    mainCategoryId,
     updatedAt,
-    parsed.data.status === "published" ? updatedAt : existing.published_at,
+    (parsed.data.status === "published" && existing.status !== "published") ? updatedAt : existing.published_at,
     parsed.data.scheduledAt ?? existing.scheduled_at,
+    parsed.data.imageUrl ?? existing.image_url,
+    parsed.data.seoTitle ?? existing.seo_title,
+    parsed.data.seoKeywords ?? existing.seo_keywords,
+    parsed.data.canonicalUrl ?? existing.canonical_url,
     req.params.id
   );
 
@@ -372,56 +539,74 @@ app.post("/api/generate-article", async (req, res) => {
     ? db.prepare("SELECT * FROM affiliate_links WHERE id = ?").get(parsed.data.affiliateLinkId)
     : null;
 
+  let finalAffiliateLink = affiliate?.url;
+  if (!finalAffiliateLink && product.asin) {
+    // If no specific link select, use the global ID + product ASIN
+    finalAffiliateLink = buildAmazonUrl(product.asin);
+  }
+
   const related = getRelatedProducts(db, {
     categoryId: parsed.data.categoryId || product.categoryId,
     excludeId: product.id,
     limit: 3,
   });
 
-  let html;
+  let result;
   try {
-    html = await generateArticleHtml({
+    result = await generateArticleHtml({
       product,
       relatedProducts: related,
-      affiliateLink: affiliate?.url,
+      affiliateLink: finalAffiliateLink,
       category: parsed.data.categoryId || product.categoryId,
       llm: { enabled: llmConfig.enabled, config: llmConfig },
       locale: "es-ES",
       tone: "cercano-profesional",
     });
+    console.log("[generate-article] LLM result type:", typeof result);
+
+    const finalResult = (typeof result === 'object' && result !== null) ? result : { html: result };
+
+    if (parsed.data.saveDraft === false) {
+      return res.json(finalResult);
+    }
+
+    const id = nanoid();
+    const createdAt = nowIso();
+    const updatedAt = createdAt;
+    const title = (product.title || finalResult.seoTitle || "Articulo generado").slice(0, 200);
+    const finalHtml = finalResult.html || "";
+    const finalSlug = finalResult.slug || slugify(title);
+
+    try {
+      db.prepare(
+        `INSERT INTO articles
+       (id, title, slug, status, html, meta_description, product_id, category_id, created_at, updated_at, image_url, seo_title, seo_keywords)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        id,
+        title,
+        finalSlug,
+        "draft",
+        finalHtml,
+        finalResult.metaDescription || null,
+        product.id || null,
+        parsed.data.categoryId || product.categoryId || null,
+        createdAt,
+        updatedAt,
+        product.images?.[0] || null,
+        finalResult.seoTitle || null,
+        finalResult.seoKeywords || null
+      );
+    } catch (dbErr) {
+      console.error("[generate-article] DB Insert Error:", dbErr);
+      return res.status(500).json({ error: "Fallo al guardar el borrador en la base de datos." });
+    }
+
+    res.json({ id, title, slug: finalSlug, status: "draft", ...finalResult });
   } catch (error) {
     console.error("LLM error:", error?.message || error);
     return res.status(500).json({ error: "Fallo al generar el artículo con LLM." });
   }
-
-  if (parsed.data.saveDraft === false) {
-    return res.json({ html });
-  }
-
-  const id = nanoid();
-  const createdAt = nowIso();
-  const updatedAt = createdAt;
-  const title = product.title || "Articulo generado";
-  const slug = slugify(title);
-
-  db.prepare(
-    `INSERT INTO articles
-     (id, title, slug, status, html, meta_description, product_id, category_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    id,
-    title,
-    slug,
-    "draft",
-    html,
-    null,
-    product.id || null,
-    parsed.data.categoryId || product.categoryId || null,
-    createdAt,
-    updatedAt
-  );
-
-  res.json({ id, title, slug, status: "draft", html });
 });
 
 // Publish

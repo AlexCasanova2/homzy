@@ -78,7 +78,42 @@
           <label>Título del Artículo</label>
           <input v-model="form.title" placeholder="Ej: Las mejores aspiradoras de 2026" />
         </div>
+
+        <div class="form-group grid-span-2">
+          <label>Imagen Destacada (URL)</label>
+          <div class="image-input-wrapper">
+             <input v-model="form.imageUrl" placeholder="https://ejemplo.com/imagen.jpg" />
+             <div v-if="form.imageUrl" class="image-preview-mini">
+                <img :src="form.imageUrl" alt="Vista previa" />
+             </div>
+          </div>
+        </div>
         
+        <div class="form-group grid-span-2">
+           <label>URL Amigable (Slug)</label>
+           <div class="slug-input-wrapper">
+              <span class="slug-prefix">homzy.es/analisis/</span>
+              <input v-model="form.slug" placeholder="las-mejores-aspiradoras-2026" />
+           </div>
+           <p class="field-hint">Si se deja vacío, se generará a partir del título.</p>
+        </div>
+
+        <div class="form-group grid-span-2 taxonomies-row">
+           <div class="taxonomy-section">
+              <label>Título SEO (meta-title)</label>
+              <input v-model="form.seoTitle" placeholder="Título optimizado para buscadores" />
+           </div>
+           <div class="taxonomy-section">
+              <label>Palabras Clave (SEO Keywords)</label>
+              <input v-model="form.seoKeywords" placeholder="aspiradoras, Dyson, hogar, limpieza" />
+           </div>
+        </div>
+
+        <div class="form-group grid-span-2">
+           <label>URL Canónica (Opcional)</label>
+           <input v-model="form.canonicalUrl" placeholder="https://homzy.es/article/slug-original" />
+        </div>
+
         <div class="form-group grid-span-2 taxonomies-row">
           <div class="taxonomy-section">
             <label>Categorías</label>
@@ -218,9 +253,13 @@ const form = ref({
   title: "",
   html: "",
   status: "draft",
-  categoryIds: [], // Now multiple
   tags: [],
   scheduledAt: "",
+  imageUrl: "",
+  slug: "",
+  seoTitle: "",
+  seoKeywords: "",
+  canonicalUrl: "",
 });
 
 async function loadArticles() {
@@ -236,18 +275,37 @@ async function loadTaxonomy() {
 
 function startCreate() {
   editingId.value = null;
-  form.value = { title: "", html: "", status: "draft", categoryIds: [], tags: [], scheduledAt: "" };
+  form.value = { title: "", html: "", status: "draft", categoryIds: [], tags: [], scheduledAt: "", imageUrl: "", slug: "", seoTitle: "", seoKeywords: "", canonicalUrl: "" };
   showForm.value = true;
 }
 
-function startEdit(article) {
-  editingId.value = article.id;
-  form.value = { 
-    ...article,
-    categoryIds: article.categoryIds || (article.categoryId ? [article.categoryId] : []),
-    tags: article.tags ? (typeof article.tags === 'string' ? JSON.parse(article.tags) : JSON.parse(JSON.stringify(article.tags))) : []
-  };
-  showForm.value = true;
+async function startEdit(article) {
+  try {
+    const { data } = await api.get(`/articles/${article.id}`);
+    editingId.value = data.id;
+    
+    // Format date for datetime-local input (YYYY-MM-DDTHH:MM)
+    let formattedDate = "";
+    if (data.scheduled_at) {
+      formattedDate = new Date(data.scheduled_at).toISOString().slice(0, 16);
+    }
+
+    form.value = { 
+      ...data,
+      categoryIds: data.categoryIds || [],
+      tags: data.tags || [],
+      scheduledAt: formattedDate,
+      metaDescription: data.meta_description || "",
+      imageUrl: data.image_url || "",
+      slug: data.slug || "",
+      seoTitle: data.seo_title || "",
+      seoKeywords: data.seo_keywords || "",
+      canonicalUrl: data.canonical_url || "",
+    };
+    showForm.value = true;
+  } catch (error) {
+    toast.error("Error al cargar detalles del artículo");
+  }
 }
 
 function closeForm() {
@@ -371,6 +429,60 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+.image-input-wrapper {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.image-preview-mini {
+  width: 60px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.image-preview-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slug-input-wrapper {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.slug-prefix {
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  background: #f1f5f9;
+  color: var(--secondary);
+  font-size: 13px;
+  border-right: 1px solid var(--border);
+  user-select: none;
+}
+
+.slug-input-wrapper input {
+  border: none !important;
+  background: transparent !important;
+  flex: 1;
+  box-shadow: none !important;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--secondary);
+  margin-top: 4px;
 }
 
 .grid-span-2 {

@@ -44,7 +44,19 @@ export function buildArticleMessages({
   };
 
   const system = `Eres un redactor SEO experto en afiliación Amazon. Escribe en ${locale} con tono ${tone}.
-Devuelve SOLO HTML completo y válido (con <html>, <head>, <body>). No añadas texto fuera del HTML.`;
+IMPORTANTE: Debes devolver un objeto JSON estrictamente válido con la siguiente estructura:
+{
+  "seoTitle": "Título optimizado para SEO",
+  "seoKeywords": "lista, de, palabras, clave",
+  "metaDescription": "Resumen para buscadores",
+  "slug": "url-amigable-sugerida",
+  "html": "<body>Contenido completo del artículo en HTML. REGLAS DE ORO DE AFILIACIÓN: 
+1. CUALQUIER enlace a un producto (ya sea el principal o los recomendados en la tabla) DEBE usar el enlace de afiliado proporcionado: ${affiliateLink}. No uses otros enlaces.
+2. Los botones de compra DEBEN tener exactamente esta estructura: <a href='${affiliateLink}' class='btn-buy' target='_blank' rel='nofollow sponsored'><span>🛒</span> COMPRAR AL MEJOR PRECIO</a>. Es vital que el texto sea 'COMPRAR AL MEJOR PRECIO' para que el botón sea grande y visible.
+3. Incluye uno de estos botones al principio, otro en la tabla comparativa (columna de acción) y otro al final en el veredicto.
+4. En el veredicto final, añade un texto persuasivo (claim) como: '¡Aprovecha esta oferta limitada antes de que se agote!' justo antes del botón final.
+</body>"
+}`;
 
   const user = `Genera un artículo SEO basado en el JSON proporcionado. Requisitos:
 - Título SEO con palabra clave
@@ -55,9 +67,10 @@ Devuelve SOLO HTML completo y válido (con <html>, <head>, <body>). No añadas t
 - Pros y contras
 - Guía de compra
 - FAQ
-- CTA con enlace afiliado
+- Sección final 'Veredicto Final' con un claim muy persuasivo y un botón de compra claro.
+- IMPORTANTE: El enlace de afiliado "${affiliateLink}" debe ser el ÚNICO enlace de compra para el producto principal. No lo uses para los productos de la competencia en la tabla.
 
-Formato: HTML listo para publicar. NO incluir explicaciones.
+Formato: JSON válido. NO incluir explicaciones fuera del bloque de código JSON.
 
 JSON:
 ${JSON.stringify(input, null, 2)}
@@ -92,14 +105,32 @@ export async function requestLlmHtml({ messages, config, fetchImpl = fetch }) {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`LLM error: ${response.status} ${text}`);
+    console.error(`LLM API Error (${response.status}):`, text);
+    throw new Error(`LLM error: ${response.status} ${text.slice(0, 100)}...`);
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch (err) {
+    const text = await response.text();
+    console.error("Failed to parse LLM JSON response:", text);
+    throw new Error("Respuesta del servidor LLM inválida (no es JSON)");
+  }
   const content = data?.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error("LLM response without content");
   }
 
-  return content;
+  try {
+    // Attempt to extract JSON if the LLM wrapped it in markdown
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return JSON.parse(content);
+  } catch (e) {
+    // If it's not JSON, return it as the HTML content part for a fallback
+    return { html: content };
+  }
 }

@@ -107,5 +107,7 @@ export async function scrapeAmazonProduct(url) {
 }
 
 export function buildAmazonUrl(asin, marketplace = "https://www.amazon.es") {
-  return `${marketplace}/dp/${asin}`;
+  const storeId = process.env.AMAZON_STORE_ID;
+  const baseUrl = `${marketplace}/dp/${asin}`;
+  return storeId ? `${baseUrl}?tag=${storeId}` : baseUrl;
 }

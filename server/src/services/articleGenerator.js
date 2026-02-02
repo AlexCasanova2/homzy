@@ -84,11 +84,11 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
       <h2>Top productos destacados</h2>
       <ol>
         ${topProducts
-          .map(
-            (item) => `
+      .map(
+        (item) => `
         <li>${escapeHtml(item.title || "Producto")}</li>`
-          )
-          .join("\n")}
+      )
+      .join("\n")}
       </ol>
     </section>
 
@@ -120,7 +120,7 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
     <section>
       <h2>CTA</h2>
       <p>Consulta el precio actual y disponibilidad aquí:</p>
-      <p><a href="${escapeHtml(link)}" rel="nofollow sponsored" target="_blank">Ver en Amazon</a></p>
+      <p><a href="${escapeHtml(link)}" rel="nofollow sponsored" target="_blank">Comprar producto al mejor precio</a></p>
     </section>
 
     <footer>

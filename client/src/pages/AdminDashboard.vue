@@ -30,6 +30,10 @@
           <span class="nav-icon"><UsersIcon :size="20" /></span>
           Afiliados
         </RouterLink>
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/newsletter') }" to="/admin/newsletter">
+          <span class="nav-icon"><MailIcon :size="20" /></span>
+          Newsletter
+        </RouterLink>
       </nav>
 
       <div class="admin-footer">
@@ -37,6 +41,10 @@
           <span class="nav-icon"><ExternalLinkIcon :size="18" /></span>
           Ver Web Pública
         </RouterLink>
+        <button class="nav-item secondary logout-btn" @click="handleLogout">
+          <span class="nav-icon"><LogOutIcon :size="18" /></span>
+          Cerrar Sesión
+        </button>
         <div class="help-card card">
           <p>¿Necesitas ayuda?</p>
           <button class="secondary small">Guía SEO</button>
@@ -56,17 +64,27 @@
 
 <script setup>
 import { computed } from "vue";
-import { RouterLink, RouterView, useRoute } from "vue-router";
+import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
+import { useAuthStore } from "../stores/auth.js";
 import { 
   LayoutDashboardIcon, 
   FileTextIcon, 
   PackageIcon, 
   FolderIcon, 
   UsersIcon, 
-  ExternalLinkIcon 
+  ExternalLinkIcon,
+  MailIcon,
+  LogOutIcon
 } from "lucide-vue-next";
 
 const route = useRoute();
+const router = useRouter();
+const auth = useAuthStore();
+
+function handleLogout() {
+  auth.logout();
+  router.push("/login");
+}
 
 function isActive(path) {
   return path === "/admin" ? route.path === "/admin" : route.path.startsWith(path);
@@ -83,7 +101,8 @@ const currentPageTitle = computed(() => {
     '/admin/articles': 'Gestión de Artículos',
     '/admin/products': 'Catálogo de Productos',
     '/admin/categories': 'Taxonomías',
-    '/admin/affiliates': 'Redes de Afiliación'
+    '/admin/affiliates': 'Redes de Afiliación',
+    '/admin/newsletter': 'Gestión de Newsletter'
   };
   return map[route.path] || 'Admin';
 });
