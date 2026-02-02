@@ -41,6 +41,20 @@
       <aside class="article-sidebar">
         <div class="side-card glass reveal" style="animation-delay: 0.1s">
           <div class="side-card__header">
+            <UserIcon :size="18" />
+            <h4>Sobre el autor</h4>
+          </div>
+          <div class="author-mini">
+            <div class="avatar-large">H</div>
+            <div class="author-info">
+              <strong>Equipo Homzy</strong>
+              <p>Expertos en lifestyle y tecnología para el hogar con más de 10 años de experiencia analizando tendencias.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-card glass reveal" style="animation-delay: 0.2s">
+          <div class="side-card__header">
             <InfoIcon :size="18" />
             <h4>Ficha del Análisis</h4>
           </div>
@@ -92,7 +106,9 @@ import {
   TagIcon, 
   InfoIcon, 
   ArrowLeftIcon,
-  Share2Icon
+  Share2Icon,
+  UserIcon,
+  ShieldCheckIcon
 } from "lucide-vue-next";
 
 const route = useRoute();

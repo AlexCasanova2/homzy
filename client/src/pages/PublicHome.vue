@@ -120,6 +120,36 @@
     </div>
   </section>
 
+  <!-- How We Test Section -->
+  <section class="steps-section container reveal delay-1">
+    <div class="section-head">
+      <h3>Cómo probamos cada producto</h3>
+      <p>Nuestro proceso riguroso para garantizar tu satisfacción</p>
+    </div>
+    <div class="steps-grid">
+      <div class="step-card reveal delay-1">
+        <div class="step-num">01</div>
+        <h4>Fase de Selección</h4>
+        <p>Buscamos productos que resuelvan problemas reales con buen diseño.</p>
+      </div>
+      <div class="step-card reveal delay-2">
+        <div class="step-num">02</div>
+        <h4>Prueba de Usuario</h4>
+        <p>Utilizamos el producto en contextos reales durante al menos 15 días.</p>
+      </div>
+      <div class="step-card reveal delay-3">
+        <div class="step-num">03</div>
+        <h4>Análisis Técnico</h4>
+        <p>Medimos durabilidad, batería y rendimiento bajo estrés.</p>
+      </div>
+      <div class="step-card reveal delay-4">
+        <div class="step-num">04</div>
+        <h4>Veredicto Final</h4>
+        <p>Asignamos una puntuación honesta basada en la relación calidad/precio.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- Newsletter CTA -->
   <section class="container reveal delay-1">
     <div class="cta-banner">
