@@ -447,6 +447,17 @@ label {
 .featured-thumb {
   background: #f1f5f9;
   position: relative;
+  overflow: hidden;
+  height: 100%;
+}
+
+.featured-thumb img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .featured-info {
@@ -1836,5 +1847,15 @@ label {
 @media (max-width: 600px) {
   .steps-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .featured-grid {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+  .featured-thumb {
+    height: 300px;
   }
 }

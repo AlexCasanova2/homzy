@@ -18,18 +18,18 @@
   </section>
 
   <!-- Featured Section -->
-  <section v-if="articles[0]" class="section reveal delay-1" style="padding-top: 0">
+  <section v-if="featuredArticle" class="section reveal delay-1" style="padding-top: 0">
     <div class="container">
-      <div class="featured-card glass card--hover" @click="$router.push(`/analisis/${articles[0].slug}`)">
+      <div class="featured-card glass card--hover" @click="$router.push(`/analisis/${featuredArticle.slug}`)">
         <div class="featured-badge">Nueva Reseña Destacada</div>
         <div class="featured-grid">
-          <div class="featured-thumb" :style="getThumbStyle(articles[0].id)">
-            <img v-if="articles[0].image_url" :src="articles[0].image_url" class="thumb-image" alt="Destacado" />
+          <div class="featured-thumb" :style="getThumbStyle(featuredArticle.id)">
+            <img v-if="featuredArticle.image_url" :src="featuredArticle.image_url" class="thumb-image" alt="Destacado" />
           </div>
           <div class="featured-info">
-            <span class="category-chip">{{ categoryName(articles[0].id) || "Análisis Pro" }}</span>
-            <h3>{{ articles[0].title }}</h3>
-            <p>{{ articles[0].meta_description || "Descubre nuestro veredicto detallado sobre este innovador producto..." }}</p>
+            <span class="category-chip">{{ categoryName(featuredArticle.category_id) || "Análisis Pro" }}</span>
+            <h3>{{ featuredArticle.title }}</h3>
+            <p>{{ featuredArticle.meta_description || "Descubre nuestro veredicto detallado sobre este innovador producto..." }}</p>
             <div class="featured-footer">
               <div class="user-meta">
                 <div class="avatar-mini">H</div>
@@ -211,13 +211,18 @@ const showAll = ref(false);
 const email = ref("");
 const toast = useToastStore();
 
+const featuredArticle = computed(() => {
+  return articles.value.find(a => a.is_featured === 1) || articles.value[0];
+});
+
 const articlesToShow = computed(() => {
-  // If we have few articles, just show all in the grid (redundant but fills the space)
-  if (articles.value.length <= 4) return articles.value;
+  if (!featuredArticle.value) return articles.value;
   
-  // Otherwise, skip the first (already featured) and show 3 or all
-  if (showAll.value) return articles.value.slice(1);
-  return articles.value.slice(1, 4);
+  // Filter out the featured article from the rest of the list
+  const others = articles.value.filter(a => a.id !== featuredArticle.value.id);
+  
+  if (showAll.value) return others;
+  return others.slice(0, 3);
 });
 
 async function loadCategories() {

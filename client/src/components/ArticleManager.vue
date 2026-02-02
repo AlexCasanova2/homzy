@@ -156,6 +156,15 @@
           <label>Programar Publicación</label>
           <input type="datetime-local" v-model="form.scheduledAt" />
         </div>
+        <div class="form-group grid-span-2">
+           <label class="checkbox-item featured-toggle">
+              <input type="checkbox" v-model="form.isFeatured" />
+              <div class="toggle-info">
+                 <span class="checkbox-label font-bold">Artículo Destacado</span>
+                 <p class="field-hint">Aparecerá en la posición principal de la página de inicio (Hero). Solo puede haber uno.</p>
+              </div>
+           </label>
+        </div>
       </div>
 
       <div class="form-group mt-20">
@@ -260,6 +269,7 @@ const form = ref({
   seoTitle: "",
   seoKeywords: "",
   canonicalUrl: "",
+  isFeatured: false,
 });
 
 async function loadArticles() {
@@ -275,7 +285,7 @@ async function loadTaxonomy() {
 
 function startCreate() {
   editingId.value = null;
-  form.value = { title: "", html: "", status: "draft", categoryIds: [], tags: [], scheduledAt: "", imageUrl: "", slug: "", seoTitle: "", seoKeywords: "", canonicalUrl: "" };
+  form.value = { title: "", html: "", status: "draft", categoryIds: [], tags: [], scheduledAt: "", imageUrl: "", slug: "", seoTitle: "", seoKeywords: "", canonicalUrl: "", isFeatured: false };
   showForm.value = true;
 }
 
@@ -301,6 +311,7 @@ async function startEdit(article) {
       seoTitle: data.seo_title || "",
       seoKeywords: data.seo_keywords || "",
       canonicalUrl: data.canonical_url || "",
+      isFeatured: !!data.is_featured,
     };
     showForm.value = true;
   } catch (error) {

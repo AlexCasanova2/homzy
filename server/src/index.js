@@ -24,6 +24,13 @@ const app = express();
 const db = createDb();
 const llmConfig = resolveLlmConfig();
 
+// Migration: Add is_featured column to articles
+try {
+  db.prepare("ALTER TABLE articles ADD COLUMN is_featured INTEGER DEFAULT 0").run();
+} catch (e) {
+  // Column already exists
+}
+
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use(cookieParser());
@@ -375,6 +382,7 @@ app.post("/api/articles", (req, res) => {
     seoTitle: z.string().optional(),
     seoKeywords: z.string().optional(),
     canonicalUrl: z.string().optional(),
+    isFeatured: z.boolean().optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -389,8 +397,8 @@ app.post("/api/articles", (req, res) => {
 
   db.prepare(
     `INSERT INTO articles
-     (id, title, slug, status, html, meta_description, product_id, category_id, created_at, updated_at, published_at, scheduled_at, image_url, seo_title, seo_keywords, canonical_url)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     (id, title, slug, status, html, meta_description, product_id, category_id, created_at, updated_at, published_at, scheduled_at, image_url, seo_title, seo_keywords, canonical_url, is_featured)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     parsed.data.title,
@@ -407,19 +415,20 @@ app.post("/api/articles", (req, res) => {
     parsed.data.imageUrl || null,
     parsed.data.seoTitle || null,
     parsed.data.seoKeywords || null,
-    parsed.data.canonicalUrl || null
+    parsed.data.canonicalUrl || null,
+    parsed.data.isFeatured ? 1 : 0
   );
 
+  if (parsed.data.isFeatured) {
+    db.prepare("UPDATE articles SET is_featured = 0 WHERE id != ?").run(id);
+  }
+
   const tags = parsed.data.tags || [];
-  const tagStmt = db.prepare(
-    "INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)"
-  );
+  const tagStmt = db.prepare("INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)");
   tags.forEach((tagId) => tagStmt.run(id, tagId));
 
   const categoryIds = parsed.data.categoryIds || [];
-  const catStmt = db.prepare(
-    "INSERT OR IGNORE INTO article_categories (article_id, category_id) VALUES (?, ?)"
-  );
+  const catStmt = db.prepare("INSERT OR IGNORE INTO article_categories (article_id, category_id) VALUES (?, ?)");
   categoryIds.forEach((catId) => catStmt.run(id, catId));
 
   res.json({ id, slug, createdAt, updatedAt });
@@ -439,6 +448,7 @@ app.put("/api/articles/:id", (req, res) => {
     seoTitle: z.string().optional(),
     seoKeywords: z.string().optional(),
     canonicalUrl: z.string().optional(),
+    isFeatured: z.boolean().optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -456,8 +466,8 @@ app.put("/api/articles/:id", (req, res) => {
 
   db.prepare(
     `UPDATE articles
-     SET title = ?, slug = ?, status = ?, html = ?, meta_description = ?, category_id = ?, updated_at = ?, published_at = ?, scheduled_at = ?, image_url = ?, seo_title = ?, seo_keywords = ?, canonical_url = ?
-     WHERE id = ?`
+     SET title = ?, slug = ?, status = ?, html = ?, meta_description = ?, category_id = ?, updated_at = ?, published_at = ?, scheduled_at = ?, image_url = ?, seo_title = ?, seo_keywords = ?, canonical_url = ?, is_featured = ?
+    WHERE id = ?`
   ).run(
     title,
     slug,
@@ -472,8 +482,13 @@ app.put("/api/articles/:id", (req, res) => {
     parsed.data.seoTitle ?? existing.seo_title,
     parsed.data.seoKeywords ?? existing.seo_keywords,
     parsed.data.canonicalUrl ?? existing.canonical_url,
+    parsed.data.isFeatured !== undefined ? (parsed.data.isFeatured ? 1 : 0) : (existing.is_featured || 0),
     req.params.id
   );
+
+  if (parsed.data.isFeatured) {
+    db.prepare("UPDATE articles SET is_featured = 0 WHERE id != ?").run(req.params.id);
+  }
 
   if (parsed.data.tags) {
     db.prepare("DELETE FROM article_tags WHERE article_id = ?").run(req.params.id);
@@ -580,8 +595,8 @@ app.post("/api/generate-article", async (req, res) => {
     try {
       db.prepare(
         `INSERT INTO articles
-       (id, title, slug, status, html, meta_description, product_id, category_id, created_at, updated_at, image_url, seo_title, seo_keywords)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    (id, title, slug, status, html, meta_description, product_id, category_id, created_at, updated_at, image_url, seo_title, seo_keywords)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         id,
         title,
