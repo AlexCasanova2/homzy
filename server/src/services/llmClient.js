@@ -44,19 +44,10 @@ export function buildArticleMessages({
   };
 
   const system = `Eres un redactor SEO experto en afiliación Amazon. Escribe en ${locale} con tono ${tone}.
-IMPORTANTE: Debes devolver un objeto JSON estrictamente válido con la siguiente estructura:
-{
-  "seoTitle": "Título optimizado para SEO",
-  "seoKeywords": "lista, de, palabras, clave",
-  "metaDescription": "Resumen para buscadores",
-  "slug": "url-amigable-sugerida",
-  "html": "<body>Contenido completo del artículo en HTML. REGLAS DE ORO DE AFILIACIÓN: 
-1. CUALQUIER enlace a un producto (ya sea el principal o los recomendados en la tabla) DEBE usar el enlace de afiliado proporcionado: ${affiliateLink}. No uses otros enlaces.
-2. Los botones de compra DEBEN tener exactamente esta estructura: <a href='${affiliateLink}' class='btn-buy' target='_blank' rel='nofollow sponsored'><span>🛒</span> COMPRAR AL MEJOR PRECIO</a>. Es vital que el texto sea 'COMPRAR AL MEJOR PRECIO' para que el botón sea grande y visible.
-3. Incluye uno de estos botones al principio, otro en la tabla comparativa (columna de acción) y otro al final en el veredicto.
-4. En el veredicto final, añade un texto persuasivo (claim) como: '¡Aprovecha esta oferta limitada antes de que se agote!' justo antes del botón final.
-</body>"
-}`;
+Devuelve un objeto JSON estrictamente válido con seoTitle, seoKeywords, metaDescription, slug y html.
+html debe contener un article completo con h1, secciones h2 y una tabla comparativa.
+Usa exclusivamente affiliateLink para el producto principal y affiliateUrl de cada producto relacionado.
+No inventes, alteres ni reutilices destinos. Todos los enlaces Amazon deben incluir target="_blank" y rel="nofollow sponsored noopener".`;
 
   const user = `Genera un artículo SEO basado en el JSON proporcionado. Requisitos:
 - Título SEO con palabra clave
@@ -67,8 +58,9 @@ IMPORTANTE: Debes devolver un objeto JSON estrictamente válido con la siguiente
 - Pros y contras
 - Guía de compra
 - FAQ
-- Sección final 'Veredicto Final' con un claim muy persuasivo y un botón de compra claro.
-- IMPORTANTE: El enlace de afiliado "${affiliateLink}" debe ser el ÚNICO enlace de compra para el producto principal. No lo uses para los productos de la competencia en la tabla.
+- CTA final de compra y sección 'Veredicto Final'
+- El enlace "${affiliateLink}" es el único destino permitido para comprar el producto principal
+- Para relacionados, enlaza solo cuando el JSON incluya affiliateUrl y usa exactamente ese valor
 
 Formato: JSON válido. NO incluir explicaciones fuera del bloque de código JSON.
 
@@ -101,6 +93,7 @@ export async function requestLlmHtml({ messages, config, fetchImpl = fetch }) {
       messages,
       temperature: 0.7,
     }),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!response.ok) {

@@ -6,6 +6,10 @@ CREATE TABLE IF NOT EXISTS categories (
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
   parent_id TEXT,
+  description TEXT,
+  seo_title TEXT,
+  seo_keywords TEXT,
+  seo_description TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (parent_id) REFERENCES categories(id)
 );
@@ -61,6 +65,11 @@ CREATE TABLE IF NOT EXISTS articles (
   updated_at TEXT NOT NULL,
   published_at TEXT,
   scheduled_at TEXT,
+  image_url TEXT,
+  seo_title TEXT,
+  seo_keywords TEXT,
+  canonical_url TEXT,
+  is_featured INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (product_id) REFERENCES products(id),
   FOREIGN KEY (category_id) REFERENCES categories(id)
 );
@@ -72,3 +81,19 @@ CREATE TABLE IF NOT EXISTS article_tags (
   FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE,
   FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  password TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_articles_status_scheduled_at ON articles(status, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);

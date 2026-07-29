@@ -15,9 +15,10 @@
         <input v-model="form.url" />
       </div>
       <div style="align-self: end;">
-        <button @click="create">Crear</button>
+        <button @click="create" :disabled="saving">{{ saving ? "Guardando..." : "Crear" }}</button>
       </div>
     </div>
+    <p v-if="error" class="field-error" role="alert">{{ error }}</p>
   </section>
 
   <section class="card">
@@ -31,9 +32,13 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import api from "../api.js";
+import { useToastStore } from "../stores/toast.js";
 
 const links = ref([]);
 const form = ref({ name: "", asin: "", url: "" });
+const saving = ref(false);
+const error = ref("");
+const toast = useToastStore();
 
 async function load() {
   const { data } = await api.get("/affiliate-links");
@@ -42,9 +47,18 @@ async function load() {
 
 async function create() {
   if (!form.value.name || !form.value.asin || !form.value.url) return;
-  await api.post("/affiliate-links", form.value);
-  form.value = { name: "", asin: "", url: "" };
-  await load();
+  saving.value = true;
+  error.value = "";
+  try {
+    await api.post("/affiliate-links", form.value);
+    form.value = { name: "", asin: "", url: "" };
+    await load();
+    toast.success("Enlace afiliado guardado");
+  } catch (requestError) {
+    error.value = requestError.response?.data?.error || "No se pudo guardar el enlace afiliado.";
+  } finally {
+    saving.value = false;
+  }
 }
 
 onMounted(load);

@@ -8,6 +8,15 @@
           <p>Extrae datos automáticamente de Amazon</p>
         </div>
       </div>
+
+      <div class="monetization-status" :class="{ warning: !affiliateLinks.length }">
+        <LinkIcon :size="18" />
+        <div>
+          <strong>Monetización: {{ affiliateLinks.length ? `${affiliateLinks.length} enlace(s) afiliado(s) disponible(s)` : "sin enlaces afiliados guardados" }}</strong>
+          <p v-if="affiliateLinks.length">Al generar, se usará el enlace cuyo ASIN coincida; en caso contrario se necesita el identificador global de Amazon configurado.</p>
+          <p v-else>La generación necesita el identificador global de Amazon configurado en el servidor. Si falta, no podrá crear un enlace de compra válido.</p>
+        </div>
+      </div>
       
       <div class="form-grid">
         <div class="form-group">
@@ -29,10 +38,11 @@
       </div>
       
       <div class="form-actions">
-        <button class="primary" @click="importProduct" :disabled="!form.url">
-          Scrappear Producto
+        <button class="primary" @click="importProduct" :disabled="!form.url || isImporting">
+          {{ isImporting ? "Importando..." : "Importar producto" }}
         </button>
       </div>
+      <p v-if="importError" class="inline-error" role="alert">{{ importError }}</p>
     </section>
 
     <section class="card">
@@ -44,7 +54,9 @@
         </div>
       </div>
 
-      <div class="table-responsive">
+      <div v-if="isLoading" class="inline-loading" aria-live="polite"><div class="spinner"></div><span>Cargando catálogo...</span></div>
+      <p v-else-if="loadError" class="inline-error" role="alert">{{ loadError }} <button class="secondary small" @click="loadInitialData">Reintentar</button></p>
+      <div v-else class="table-responsive">
         <table class="table">
           <thead>
             <tr>
@@ -70,7 +82,7 @@
                 <button class="secondary small" @click="generateArticle(product)" :disabled="isGenerating">
                   <div class="flex-center">
                     <SparklesIcon :size="14" class="mr-8" />
-                    {{ isGenerating ? "Generando..." : "Generar artículo" }}
+                    {{ generatingId === product.id ? "Generando..." : "Generar artículo" }}
                   </div>
                 </button>
               </td>
@@ -180,6 +192,12 @@
   display: flex;
   justify-content: flex-end;
 }
+
+.monetization-status { display: flex; gap: 12px; align-items: flex-start; margin: -4px 0 20px; padding: 14px 16px; border-radius: var(--radius-md); background: #ecfdf5; color: #166534; border: 1px solid #a7f3d0; }
+.monetization-status.warning { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+.monetization-status p { margin-top: 2px; font-size: 12px; line-height: 1.45; }
+.inline-loading { display: flex; justify-content: center; align-items: center; gap: 12px; min-height: 160px; color: var(--text-muted); }
+.inline-error { margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-sm); background: #fef2f2; color: #b91c1c; font-size: 13px; }
 
 .asin-code {
   background: #f1f5f9;
@@ -311,6 +329,12 @@
 .article-html-v3 h2 { color: var(--text); margin-top: 32px; margin-bottom: 16px; }
 .article-html-v3 p { margin-bottom: 20px; }
 .article-html-v3 ul { margin-bottom: 20px; padding-left: 20px; }
+
+@media (max-width: 700px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .card { padding: 18px; }
+  .loading-card { width: calc(100% - 32px); padding: 28px 18px; }
+}
 </style>
 
 <script setup>
@@ -328,9 +352,15 @@ import { useToastStore } from "../stores/toast.js";
 
 const products = ref([]);
 const categories = ref([]);
+const affiliateLinks = ref([]);
 const form = ref({ url: "", categoryId: "" });
 const generated = ref(null);
 const isGenerating = ref(false);
+const generatingId = ref(null);
+const isImporting = ref(false);
+const isLoading = ref(true);
+const loadError = ref("");
+const importError = ref("");
 const elapsed = ref(0);
 const currentStepIndex = ref(0);
 const toast = useToastStore();
@@ -364,34 +394,44 @@ async function loadCategories() {
 
 async function importProduct() {
   if (!form.value.url) return;
+  isImporting.value = true;
+  importError.value = "";
   try {
     await api.post("/products/import", form.value);
     form.value.url = "";
     await loadProducts();
   } catch (error) {
-    const message = error?.response?.data?.error || error?.message || "Error al importar.";
-    alert(message);
+    importError.value = error?.response?.data?.error || error?.message || "No se pudo importar el producto.";
+  } finally {
+    isImporting.value = false;
   }
 }
 
 async function generateArticle(product) {
+  const affiliate = affiliateLinks.value.find((link) => link.asin?.toUpperCase() === product.asin?.toUpperCase());
   try {
     isGenerating.value = true;
+    generatingId.value = product.id;
     elapsed.value = 0;
     timerId = setInterval(() => {
       elapsed.value += 1;
     }, 1000);
     const { data } = await api.post("/generate-article", {
       productId: product.id,
-      categoryId: product.categoryId,
+      categoryId: product.category_id,
+      ...(affiliate ? { affiliateLinkId: affiliate.id } : {}),
     });
     generated.value = data;
     toast.success("¡Artículo generado con éxito!");
   } catch (error) {
-    const message = error?.response?.data?.error || error?.message || "Error al generar.";
+    let message = error?.response?.data?.error || error?.message || "Error al generar.";
+    if (!affiliate) {
+      message += " Comprueba que el identificador de afiliado de Amazon esté configurado o crea un enlace afiliado para este ASIN.";
+    }
     toast.error(message);
   } finally {
     isGenerating.value = false;
+    generatingId.value = null;
     if (timerId) {
       clearInterval(timerId);
       timerId = null;
@@ -399,8 +439,24 @@ async function generateArticle(product) {
   }
 }
 
-onMounted(async () => {
-  await loadCategories();
-  await loadProducts();
-});
+async function loadInitialData() {
+  isLoading.value = true;
+  loadError.value = "";
+  try {
+    const [productsResponse, categoriesResponse, affiliatesResponse] = await Promise.all([
+      api.get("/products"),
+      api.get("/categories"),
+      api.get("/affiliate-links"),
+    ]);
+    products.value = productsResponse.data;
+    categories.value = categoriesResponse.data;
+    affiliateLinks.value = affiliatesResponse.data;
+  } catch (error) {
+    loadError.value = error?.response?.data?.error || "No se pudieron cargar productos, categorías y monetización.";
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(loadInitialData);
 </script>

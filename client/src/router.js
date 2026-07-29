@@ -3,6 +3,7 @@ import PublicHome from "./pages/PublicHome.vue";
 import PublicArticle from "./pages/PublicArticle.vue";
 import PublicCategories from "./pages/PublicCategories.vue";
 import PublicCategory from "./pages/PublicCategory.vue";
+import PublicSearch from "./pages/PublicSearch.vue";
 import AdminDashboard from "./pages/AdminDashboard.vue";
 import AdminDashboardHome from "./pages/admin/AdminDashboardHome.vue";
 import AdminProductsPage from "./pages/admin/AdminProductsPage.vue";
@@ -23,6 +24,7 @@ const routes = [
   { path: "/analisis/:slug", component: PublicArticle },
   { path: "/categorias", component: PublicCategories },
   { path: "/categoria/:slug", component: PublicCategory },
+  { path: "/buscar", component: PublicSearch },
   // ... admin routes
   {
     path: "/admin",
@@ -46,21 +48,15 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore();
 
-  // if (to.meta.requiresAuth && !auth.isAuthenticated) {
-  //   // Try to restore session
-  //   const valid = await auth.checkAuth();
-  //   if (!valid) return next("/login");
-  // }
-
-  // Check auth synchornously first for speed
-  if (to.path.startsWith('/admin') && !auth.isAuthenticated) {
-    return next("/login");
+  if (to.matched.some((record) => record.meta.requiresAuth)) {
+    const valid = await auth.checkAuth();
+    if (!valid) return { path: "/login", query: { redirect: to.fullPath } };
   }
 
-  next();
+  return true;
 });
 
 export default router;

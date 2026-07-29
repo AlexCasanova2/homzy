@@ -36,6 +36,26 @@ function extractAsinFromUrl(url) {
   return match ? match[1].toUpperCase() : null;
 }
 
+const AMAZON_TLDS = [
+  "com", "ca", "com.mx", "com.br", "co.uk", "de", "fr", "it", "es", "nl", "pl", "se", "com.be",
+  "co.jp", "in", "com.au", "sg", "com.tr", "ae", "sa", "eg",
+];
+
+export function normalizeAsin(value) {
+  const asin = String(value || "").trim().toUpperCase();
+  return /^[A-Z0-9]{10}$/.test(asin) ? asin : null;
+}
+
+export function parseAmazonUrl(value) {
+  const url = new URL(value);
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  const allowedHosts = AMAZON_TLDS.flatMap((tld) => [`amazon.${tld}`, `www.amazon.${tld}`]);
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.port || !allowedHosts.includes(hostname)) {
+    throw new Error("Only standard Amazon marketplace URLs are allowed");
+  }
+  return url;
+}
+
 function extractTitle($) {
   const title =
     $("#productTitle").text().trim() ||
@@ -47,12 +67,22 @@ function extractTitle($) {
 }
 
 export async function scrapeAmazonProduct(url) {
+  const target = parseAmazonUrl(url);
   // Soft scraping: low frequency, browser-like headers.
   await sleep(1500 + Math.floor(Math.random() * 1000));
 
-  const response = await axios.get(url, {
+  const response = await axios.get(target.href, {
     headers: DEFAULT_HEADERS,
     timeout: 15000,
+    maxRedirects: 3,
+    maxContentLength: 2 * 1024 * 1024,
+    maxBodyLength: 2 * 1024 * 1024,
+    beforeRedirect: (options) => {
+      const auth = options.auth ? `${options.auth}@` : "";
+      const port = options.port ? `:${options.port}` : "";
+      parseAmazonUrl(`${options.protocol}//${auth}${options.hostname}${port}${options.path || "/"}`);
+    },
+    responseType: "text",
   });
   const $ = cheerio.load(response.data);
 
@@ -106,8 +136,9 @@ export async function scrapeAmazonProduct(url) {
   };
 }
 
-export function buildAmazonUrl(asin, marketplace = "https://www.amazon.es") {
-  const storeId = process.env.AMAZON_STORE_ID;
-  const baseUrl = `${marketplace}/dp/${asin}`;
-  return storeId ? `${baseUrl}?tag=${storeId}` : baseUrl;
+export function buildAmazonUrl(asin, marketplace = "https://www.amazon.es", storeId = process.env.AMAZON_STORE_ID) {
+  const normalizedAsin = normalizeAsin(asin);
+  if (!normalizedAsin || !storeId || !/^[A-Za-z0-9_-]{2,64}$/.test(storeId)) return null;
+  const base = parseAmazonUrl(marketplace || "https://www.amazon.es");
+  return `${base.origin}/dp/${normalizedAsin}?tag=${encodeURIComponent(storeId)}`;
 }

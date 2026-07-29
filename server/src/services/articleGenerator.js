@@ -24,6 +24,7 @@ function renderComparisonTable(primary, related) {
       <th>Precio</th>
       <th>Rating</th>
       <th>Reviews</th>
+      <th>Acción</th>
     </tr>
   </thead>
   <tbody>
@@ -35,6 +36,7 @@ function renderComparisonTable(primary, related) {
         <td>${escapeHtml(item.price || "Consultar")}</td>
         <td>${item.rating ?? "-"}</td>
         <td>${item.reviews ?? "-"}</td>
+        <td>${item.affiliateUrl ? `<a href="${escapeHtml(item.affiliateUrl)}" target="_blank" rel="nofollow sponsored noopener">Ver oferta</a>` : "-"}</td>
       </tr>`
       )
       .join("\n")}
@@ -52,12 +54,12 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
   const cons = take(features.slice(3), 3);
 
   const topProducts = take([product, ...relatedProducts], 8);
-  const comparisonTable = renderComparisonTable(product, relatedProducts);
+  const comparisonTable = renderComparisonTable({ ...product, affiliateUrl: affiliateLink }, relatedProducts);
 
-  const link = affiliateLink || product.url || "#";
+  const link = affiliateLink;
   const slug = slugify(title);
 
-  return `<!doctype html>
+  const html = `<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
@@ -120,7 +122,7 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
     <section>
       <h2>CTA</h2>
       <p>Consulta el precio actual y disponibilidad aquí:</p>
-      <p><a href="${escapeHtml(link)}" rel="nofollow sponsored" target="_blank">Comprar producto al mejor precio</a></p>
+      <p><a href="${escapeHtml(link)}" rel="nofollow sponsored noopener" target="_blank">Comprar producto al mejor precio</a></p>
     </section>
 
     <footer>
@@ -129,6 +131,7 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
   </article>
 </body>
 </html>`;
+  return { html, seoTitle: title, metaDescription, slug };
 }
 
 export async function generateArticleHtml({
@@ -150,12 +153,15 @@ export async function generateArticleHtml({
       tone,
     });
 
-    if (llm.request) {
-      return llm.request({ messages });
-    }
-
-    if (llm.config) {
-      return requestLlmHtml({ messages, config: llm.config });
+    try {
+      const result = llm.request
+        ? await llm.request({ messages })
+        : llm.config
+          ? await requestLlmHtml({ messages, config: llm.config })
+          : null;
+      if (result?.html) return result;
+    } catch (error) {
+      console.warn("LLM generation failed; using template:", error?.message || error);
     }
   }
 

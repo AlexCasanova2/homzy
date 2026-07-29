@@ -101,7 +101,7 @@ test("requestLlmHtml returns html from chat completion", async () => {
     }),
   });
 
-  const html = await requestLlmHtml({
+  const result = await requestLlmHtml({
     messages,
     config: {
       baseUrl: "http://localhost:1234/v1",
@@ -114,7 +114,7 @@ test("requestLlmHtml returns html from chat completion", async () => {
     },
   });
 
-  assert.equal(html.includes("<html>"), true);
+  assert.equal(result.html.includes("<html>"), true);
   assert.ok(capturedHeaders["content-type"]);
 });
 

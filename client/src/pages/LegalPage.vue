@@ -15,10 +15,10 @@
           <p>Utilizamos su correo electrónico exclusivamente para enviarle actualizaciones, nuevas reseñas de productos y guías de compra relacionadas con el diseño y la tecnología del hogar.</p>
           
           <h2>3. Cookies y Seguimiento</h2>
-          <p>Utilizamos herramientas como Google Tag Manager y Google Analytics para entender cómo los usuarios interactúan con nuestro sitio. Estas herramientas pueden recopilar datos técnicos como su dirección IP, tipo de navegador y páginas visitadas a través de cookies.</p>
+          <p>Utilizamos herramientas como Google Tag Manager y Google Analytics para entender cómo los usuarios interactúan con nuestro sitio. Estas herramientas pueden recopilar datos técnicos como su dirección IP, tipo de navegador y páginas visitadas a través de cookies. También registramos interacciones con enlaces afiliados, como el artículo, el texto del enlace y su destino, para medir su uso.</p>
           
           <h2>4. Enlaces de Afiliación</h2>
-          <p>Homzy participa en programas de afiliados, como el de Amazon Services LLC. Esto significa que podemos recibir una comisión por las compras realizadas a través de nuestros enlaces, sin costo adicional para usted.</p>
+          <p>Homzy participa en el Programa de Afiliados de Amazon. En calidad de Afiliado de Amazon, obtenemos ingresos por las compras que cumplen los requisitos. Podemos recibir una comisión cuando compra mediante nuestros enlaces, sin coste adicional para usted. Esta relación comercial no modifica el precio ni garantiza una recomendación favorable.</p>
           
           <h2>5. Sus Derechos</h2>
           <p>Usted puede darse de baja de nuestra lista de correo en cualquier momento enviando un correo a contacto@homzy.es o haciendo clic en el enlace de "cancelar suscripción" en nuestros correos.</p>
@@ -36,6 +36,9 @@
           
           <h2>4. Limitación de Responsabilidad</h2>
           <p>Homzy no será responsable de ningún daño que surja del uso o la imposibilidad de usar el contenido de este sitio.</p>
+
+          <h2>5. Enlaces de Afiliación</h2>
+          <p>Homzy participa en el Programa de Afiliados de Amazon. En calidad de Afiliado de Amazon, obtenemos ingresos por las compras que cumplen los requisitos. Algunos enlaces llevan a Amazon u otros comercios y pueden generar una comisión para Homzy, sin coste adicional para usted. Los precios, la disponibilidad, la entrega y la venta dependen del comercio externo.</p>
         </div>
       </div>
 
@@ -55,7 +58,7 @@ import { ArrowLeftIcon } from "lucide-vue-next";
 
 defineProps({
   title: { type: String, default: "Política de Privacidad" },
-  lastUpdate: { type: String, default: "Febrero 2026" }
+  lastUpdate: { type: String, default: "Julio 2026" }
 });
 </script>
 

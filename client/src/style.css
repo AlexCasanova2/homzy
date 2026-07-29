@@ -1374,6 +1374,7 @@ label {
   font-size: 18px;
   line-height: 1.8;
   color: #334155;
+  overflow-x: auto;
 }
 
 .article-content-v3 h2 {

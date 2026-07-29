@@ -30,6 +30,7 @@
                 <span class="status-badge" :class="article.status">
                   {{ article.status }}
                 </span>
+                <small v-if="article.status === 'scheduled' && article.scheduled_at" class="scheduled-detail">{{ formatScheduled(article.scheduled_at) }}</small>
               </td>
               <td class="text-right">
                 <div class="action-buttons">
@@ -39,10 +40,10 @@
                   <button class="secondary small" @click="startEdit(article)" title="Editar">
                     <Edit3Icon :size="14" />
                   </button>
-                  <button class="secondary small" @click="publish(article)" :disabled="isPublishing" title="Publicar">
+                  <button class="secondary small" @click="publish(article)" :disabled="isPublishing(article.id) || article.status === 'published'" :title="article.status === 'published' ? 'Ya está publicado' : 'Publicar ahora'">
                     <div class="flex-center">
-                      <CloudUploadIcon :size="14" v-if="!isPublishing" />
-                      <span v-else>...</span>
+                      <CloudUploadIcon :size="14" v-if="!isPublishing(article.id)" />
+                      <span v-else>Publicando {{ publishElapsed[article.id] || 0 }}s</span>
                     </div>
                   </button>
                   <button class="danger small" @click="remove(article)" title="Eliminar">
@@ -110,8 +111,16 @@
         </div>
 
         <div class="form-group grid-span-2">
+          <label for="meta-description">Meta descripción</label>
+          <textarea id="meta-description" v-model="form.metaDescription" rows="3" maxlength="180" placeholder="Resumen claro del artículo para buscadores y redes sociales"></textarea>
+          <p class="field-hint char-count" :class="{ warning: form.metaDescription.length > 160 }">{{ form.metaDescription.length }}/180 caracteres · recomendado: 140-160</p>
+        </div>
+
+        <div class="form-group grid-span-2">
            <label>URL Canónica (Opcional)</label>
-           <input v-model="form.canonicalUrl" placeholder="https://homzy.es/article/slug-original" />
+           <input v-model.trim="form.canonicalUrl" type="url" placeholder="https://homzy.es/analisis/slug-original" :aria-invalid="!!canonicalError" @blur="canonicalTouched = true" />
+           <p v-if="canonicalTouched && canonicalError" class="field-error">{{ canonicalError }}</p>
+           <p v-else class="field-hint">Usa una URL absoluta con http o https solo si este contenido se publicó originalmente en otra dirección.</p>
         </div>
 
         <div class="form-group grid-span-2 taxonomies-row">
@@ -153,8 +162,9 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Programar Publicación</label>
-          <input type="datetime-local" v-model="form.scheduledAt" />
+          <label>Programar publicación</label>
+          <input type="datetime-local" v-model="form.scheduledAt" :required="form.status === 'scheduled'" />
+          <p class="field-hint">Hora local del navegador ({{ browserTimeZone }}). Estado actual: {{ scheduleStatus }}.</p>
         </div>
         <div class="form-group grid-span-2">
            <label class="checkbox-item featured-toggle">
@@ -200,7 +210,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, computed } from "vue";
+import { onMounted, onUnmounted, ref, computed } from "vue";
 import api from "../api.js";
 import RichTextEditor from "./RichTextEditor.vue";
 import { useToastStore } from "../stores/toast.js";
@@ -220,12 +230,30 @@ const articles = ref([]);
 const categories = ref([]);
 const tags = ref([]);
 const activePreview = ref(null);
-const isPublishing = ref(false);
+const publishingIds = ref(new Set());
 const showForm = ref(false);
 const editingId = ref(null);
-const publishElapsed = ref(0);
-let publishTimer = null;
+const publishElapsed = ref({});
+const publishTimers = new Map();
+const canonicalTouched = ref(false);
 const toast = useToastStore();
+const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "zona local";
+
+const canonicalError = computed(() => {
+  if (!form.value.canonicalUrl) return "";
+  try {
+    const url = new URL(form.value.canonicalUrl);
+    return ["http:", "https:"].includes(url.protocol) ? "" : "La URL debe usar http o https.";
+  } catch {
+    return "Introduce una URL absoluta válida, por ejemplo https://homzy.es/analisis/mi-articulo.";
+  }
+});
+
+const scheduleStatus = computed(() => {
+  if (form.value.status !== "scheduled") return "no programado";
+  if (!form.value.scheduledAt) return "falta fecha y hora";
+  return new Date(form.value.scheduledAt) > new Date() ? "pendiente de publicación" : "la fecha ya ha pasado";
+});
 
 const categoryTree = computed(() => {
   const tree = [];
@@ -262,12 +290,14 @@ const form = ref({
   title: "",
   html: "",
   status: "draft",
+  categoryIds: [],
   tags: [],
   scheduledAt: "",
   imageUrl: "",
   slug: "",
   seoTitle: "",
   seoKeywords: "",
+  metaDescription: "",
   canonicalUrl: "",
   isFeatured: false,
 });
@@ -285,7 +315,8 @@ async function loadTaxonomy() {
 
 function startCreate() {
   editingId.value = null;
-  form.value = { title: "", html: "", status: "draft", categoryIds: [], tags: [], scheduledAt: "", imageUrl: "", slug: "", seoTitle: "", seoKeywords: "", canonicalUrl: "", isFeatured: false };
+  form.value = { title: "", html: "", status: "draft", categoryIds: [], tags: [], scheduledAt: "", imageUrl: "", slug: "", seoTitle: "", seoKeywords: "", metaDescription: "", canonicalUrl: "", isFeatured: false };
+  canonicalTouched.value = false;
   showForm.value = true;
 }
 
@@ -297,7 +328,8 @@ async function startEdit(article) {
     // Format date for datetime-local input (YYYY-MM-DDTHH:MM)
     let formattedDate = "";
     if (data.scheduled_at) {
-      formattedDate = new Date(data.scheduled_at).toISOString().slice(0, 16);
+      const date = new Date(data.scheduled_at);
+      formattedDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     }
 
     form.value = { 
@@ -313,6 +345,7 @@ async function startEdit(article) {
       canonicalUrl: data.canonical_url || "",
       isFeatured: !!data.is_featured,
     };
+    canonicalTouched.value = false;
     showForm.value = true;
   } catch (error) {
     toast.error("Error al cargar detalles del artículo");
@@ -331,9 +364,9 @@ function editFromPreview() {
 }
 
 async function createArticle() {
-  if (!form.value.title) return toast.error("Por favor, introduce un título.");
+  if (!validateForm()) return;
   try {
-    await api.post("/articles", form.value);
+    await api.post("/articles", articlePayload());
     toast.success("Artículo creado correctamente");
     closeForm();
     await loadArticles();
@@ -344,9 +377,9 @@ async function createArticle() {
 }
 
 async function updateArticle() {
-  if (!form.value.title) return toast.error("Por favor, introduce un título.");
+  if (!validateForm()) return;
   try {
-    await api.put(`/articles/${editingId.value}`, form.value);
+    await api.put(`/articles/${editingId.value}`, articlePayload());
     toast.success("Artículo actualizado");
     closeForm();
     await loadArticles();
@@ -360,13 +393,30 @@ function preview(article) {
   activePreview.value = article;
 }
 
+function formatScheduled(value) {
+  return new Date(value).toLocaleString("es-ES", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
 async function publish(article) {
+  const warnings = [];
+  if (!article.meta_description) warnings.push("no tiene meta descripción");
+  if (!article.category_id) warnings.push("no tiene categoría principal");
+  if (!article.html || article.html.replace(/<[^>]+>/g, "").trim().length < 100) warnings.push("el contenido parece incompleto");
+  const warningText = warnings.length ? `\n\nAntes de publicar: ${warnings.join(", ")}.` : "";
+  if (!confirm(`¿Publicar ahora “${article.title}”? El artículo quedará visible en la web.${warningText}`)) return;
   try {
-    isPublishing.value = true;
-    publishElapsed.value = 0;
-    publishTimer = setInterval(() => {
-      publishElapsed.value += 1;
-    }, 1000);
+    publishingIds.value.add(article.id);
+    publishElapsed.value[article.id] = 0;
+    publishTimers.set(article.id, setInterval(() => {
+      publishElapsed.value[article.id] += 1;
+    }, 1000));
     await api.post("/publish-article", { articleId: article.id });
     toast.success("¡Artículo publicado con éxito!");
     await loadArticles();
@@ -374,12 +424,45 @@ async function publish(article) {
      const message = error?.response?.data?.error || error?.message || "Error al publicar.";
     toast.error(message);
   } finally {
-    isPublishing.value = false;
-    if (publishTimer) {
-      clearInterval(publishTimer);
-      publishTimer = null;
+    publishingIds.value.delete(article.id);
+    clearInterval(publishTimers.get(article.id));
+    publishTimers.delete(article.id);
+    delete publishElapsed.value[article.id];
+  }
+}
+
+function isPublishing(articleId) {
+  return publishingIds.value.has(articleId);
+}
+
+function articlePayload() {
+  return {
+    ...form.value,
+    scheduledAt: form.value.scheduledAt ? new Date(form.value.scheduledAt).toISOString() : "",
+  };
+}
+
+function validateForm() {
+  if (!form.value.title) {
+    toast.error("Por favor, introduce un título.");
+    return false;
+  }
+  canonicalTouched.value = true;
+  if (canonicalError.value) {
+    toast.error("Corrige la URL canónica antes de guardar.");
+    return false;
+  }
+  if (form.value.status === "scheduled") {
+    if (!form.value.scheduledAt) {
+      toast.error("Selecciona la fecha y hora de publicación.");
+      return false;
+    }
+    if (new Date(form.value.scheduledAt) <= new Date()) {
+      toast.error("La publicación programada debe estar en el futuro.");
+      return false;
     }
   }
+  return true;
 }
 
 async function remove(article) {
@@ -397,6 +480,11 @@ async function remove(article) {
 onMounted(async () => {
   await loadTaxonomy();
   await loadArticles();
+});
+
+onUnmounted(() => {
+  publishTimers.forEach((timer) => clearInterval(timer));
+  publishTimers.clear();
 });
 </script>
 
@@ -495,6 +583,9 @@ onMounted(async () => {
   color: var(--secondary);
   margin-top: 4px;
 }
+.field-error { margin-top: 5px; color: #b91c1c; font-size: 12px; }
+.char-count { text-align: right; }
+.char-count.warning { color: #b45309; font-weight: 600; }
 
 .grid-span-2 {
   grid-column: span 2;
@@ -581,6 +672,7 @@ onMounted(async () => {
 .status-badge.draft { background: #f1f5f9; color: #475569; }
 .status-badge.published { background: #dcfce7; color: #166534; }
 .status-badge.scheduled { background: #e0f2fe; color: #0369a1; }
+.scheduled-detail { display: block; margin-top: 5px; color: var(--text-muted); white-space: nowrap; }
 
 .action-buttons {
   display: flex;
@@ -631,5 +723,15 @@ onMounted(async () => {
 
 .article-preview-content {
   font-size: 15px;
+}
+
+@media (max-width: 700px) {
+  .form-grid, .taxonomies-row { grid-template-columns: 1fr; }
+  .grid-span-2 { grid-column: span 1; }
+  .section-header { align-items: flex-start; flex-wrap: wrap; }
+  .section-header .ml-auto { margin-left: 0; }
+  .slug-input-wrapper { display: block; }
+  .slug-prefix { padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .action-buttons { min-width: max-content; }
 }
 </style>

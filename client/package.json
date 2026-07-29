@@ -10,6 +10,11 @@
     "lint": "node -e \"console.log('no lint configured')\""
   },
   "dependencies": {
+    "@tiptap/extension-link": "^3.29.2",
+    "@tiptap/extension-table": "^3.29.2",
+    "@tiptap/extension-table-cell": "^3.29.2",
+    "@tiptap/extension-table-header": "^3.29.2",
+    "@tiptap/extension-table-row": "^3.29.2",
     "@tiptap/pm": "^3.18.0",
     "@tiptap/starter-kit": "^3.18.0",
     "@tiptap/vue-3": "^3.18.0",

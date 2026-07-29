@@ -9,12 +9,12 @@
       <form @submit.prevent="handleSubmit">
         <div class="form-group">
           <label>Usuario {{ isSetupMode ? '(Nuevo Admin)' : '' }}</label>
-          <input v-model="username" type="text" required autofocus />
+          <input v-model="username" type="text" minlength="3" maxlength="64" required autofocus />
         </div>
         
         <div class="form-group">
           <label>Contraseña {{ isSetupMode ? '(Nueva)' : '' }}</label>
-          <input v-model="password" type="password" required />
+          <input v-model="password" type="password" :minlength="isSetupMode ? 10 : 1" maxlength="128" required />
         </div>
 
         <div v-if="error" class="error-msg">
@@ -33,7 +33,7 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth.js";
 import api from "../api.js";
 
@@ -45,6 +45,7 @@ const isSetupMode = ref(false);
 
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
 
 onMounted(async () => {
   try {
@@ -70,7 +71,10 @@ async function handleSubmit() {
     } else {
        await auth.login(username.value, password.value);
     }
-    router.push("/admin");
+    const redirect = typeof route.query.redirect === "string" && route.query.redirect.startsWith("/admin")
+      ? route.query.redirect
+      : "/admin";
+    router.replace(redirect);
   } catch (err) {
     error.value = err.response?.data?.error || "Error de autenticación";
   } finally {

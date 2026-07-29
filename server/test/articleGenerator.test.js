@@ -14,22 +14,22 @@ const product = {
 };
 
 test("generateArticleHtml uses llm when enabled", async () => {
-  const html = await generateArticleHtml({
+  const result = await generateArticleHtml({
     product,
     relatedProducts: [],
     affiliateLink: "https://example.com/afiliado",
     category: "Cocina",
     llm: {
       enabled: true,
-      request: async () => "<html><body>LLM</body></html>",
+      request: async () => ({ html: "<html><body>LLM</body></html>" }),
     },
   });
 
-  assert.equal(html.includes("LLM"), true);
+  assert.equal(result.html.includes("LLM"), true);
 });
 
 test("generateArticleHtml falls back to template when llm disabled", async () => {
-  const html = await generateArticleHtml({
+  const result = await generateArticleHtml({
     product,
     relatedProducts: [],
     affiliateLink: "https://example.com/afiliado",
@@ -37,5 +37,15 @@ test("generateArticleHtml falls back to template when llm disabled", async () =>
     llm: { enabled: false },
   });
 
-  assert.equal(html.includes("<!doctype html>"), true);
+  assert.equal(result.html.includes("<!doctype html>"), true);
+});
+
+test("generateArticleHtml falls back to template when llm fails", async () => {
+  const result = await generateArticleHtml({
+    product,
+    affiliateLink: "https://www.amazon.es/dp/B0TEST1234?tag=test-21",
+    llm: { enabled: true, request: async () => { throw new Error("offline"); } },
+  });
+  assert.match(result.html, /Comparativa rápida/);
+  assert.match(result.html, /<td><a href="https:\/\/www\.amazon\.es\/dp\/B0TEST1234\?tag=test-21"/);
 });

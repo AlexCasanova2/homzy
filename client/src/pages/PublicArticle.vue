@@ -4,6 +4,21 @@
   </div>
 
   <section class="section article-hero-section reveal">
+    <div v-if="loading" class="container article-state" aria-live="polite">
+      <div class="spinner"></div>
+      <h1>Cargando análisis...</h1>
+    </div>
+    <div v-else-if="notFound" class="container article-state">
+      <h1>Análisis no encontrado</h1>
+      <p>El artículo puede haberse movido o ya no estar disponible.</p>
+      <RouterLink to="/" class="primary">Volver al inicio</RouterLink>
+    </div>
+    <div v-else-if="error" class="container article-state">
+      <h1>No pudimos cargar el análisis</h1>
+      <p>{{ error }}</p>
+      <button class="secondary" @click="loadArticle(route.params.slug)">Reintentar</button>
+    </div>
+    <template v-else-if="article">
     <div class="container">
       <nav class="breadcrumbs">
         <RouterLink to="/">Inicio</RouterLink>
@@ -12,8 +27,9 @@
       </nav>
 
       <header class="article-header">
-        <h1 class="article-title">{{ article?.title || "Cargando análisis..." }}</h1>
+        <h1 class="article-title">{{ article.title }}</h1>
         <p class="article-subtitle">{{ article?.meta_description }}</p>
+        <p class="affiliate-disclosure"><strong>Divulgación de afiliados:</strong> En calidad de Afiliado de Amazon, Homzy obtiene ingresos por las compras que cumplen los requisitos. Si compras mediante nuestros enlaces, podemos recibir una comisión sin coste adicional para ti.</p>
         
         <div class="article-meta-row">
           <div class="meta-item">
@@ -39,11 +55,7 @@
     <div class="container">
       <div class="article-layout">
         <main class="article-main">
-          <div v-if="article" class="article-content-v3" v-html="article.html"></div>
-          <div v-else class="article-skeleton">
-            <!-- Loading skeleton could go here -->
-            <p>Cargando contenido detallado...</p>
-          </div>
+          <div ref="articleContent" class="article-content-v3" v-html="article.html" @click="trackAffiliateClick"></div>
         </main>
         <aside class="article-sidebar">
           <div class="side-card glass reveal" style="animation-delay: 0.1s">
@@ -55,7 +67,7 @@
               <div class="avatar-large">H</div>
               <div class="author-info">
                 <strong>Equipo Homzy</strong>
-                <p>Expertos en lifestyle y tecnología para el hogar con más de 10 años de experiencia analizando tendencias.</p>
+                <p>Equipo editorial especializado en investigar y comparar productos para el hogar.</p>
               </div>
             </div>
           </div>
@@ -75,8 +87,8 @@
                 <strong>{{ categoryName(article?.category_id) }}</strong>
               </div>
               <div class="side-info-item">
-                <span>Dificultad</span>
-                <strong>Baja</strong>
+                <span>Método</span>
+                <strong>Investigación editorial</strong>
               </div>
             </div>
           </div>
@@ -100,11 +112,12 @@
         </aside>
       </div>
     </div>
+    </template>
   </section>
 </template>
 
 <script setup>
-import { onMounted, ref, onUnmounted } from "vue";
+import { nextTick, onMounted, ref, onUnmounted, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import api from "../api.js";
 import { useToastStore } from "../stores/toast.js";
@@ -115,17 +128,20 @@ import {
   TagIcon, 
   InfoIcon, 
   ArrowLeftIcon,
-  Share2Icon,
   UserIcon,
-  ShieldCheckIcon
 } from "lucide-vue-next";
 
 const route = useRoute();
 const article = ref(null);
+const articleContent = ref(null);
 const categories = ref([]);
+const loading = ref(true);
+const notFound = ref(false);
+const error = ref("");
 const readingProgress = ref(0);
 const email = ref("");
 const toast = useToastStore();
+let requestNumber = 0;
 
 async function handleSubscribe() {
   if (!email.value) return;
@@ -141,7 +157,7 @@ async function handleSubscribe() {
 const updateProgress = () => {
   const scrolled = window.scrollY;
   const height = document.documentElement.scrollHeight - window.innerHeight;
-  readingProgress.value = (scrolled / height) * 100;
+  readingProgress.value = height > 0 ? Math.min(100, (scrolled / height) * 100) : 0;
 };
 
 async function loadCategories() {
@@ -167,48 +183,132 @@ function formatDate(value) {
   });
 }
 
-onMounted(async () => {
-  window.addEventListener('scroll', updateProgress);
-  await loadCategories();
-  const { data } = await api.get(`/articles/${route.params.slug}`);
-  article.value = data;
-  updateMeta(data);
-});
+async function loadArticle(slug) {
+  const currentRequest = ++requestNumber;
+  clearMeta();
+  article.value = null;
+  loading.value = true;
+  notFound.value = false;
+  error.value = "";
+  readingProgress.value = 0;
+  try {
+    const { data } = await api.get(`/articles/${slug}`);
+    if (currentRequest !== requestNumber) return;
+    article.value = data;
+    updateMeta(data);
+    await nextTick();
+    secureExternalLinks();
+    updateProgress();
+  } catch (requestError) {
+    if (currentRequest !== requestNumber) return;
+    if (requestError.response?.status === 404) notFound.value = true;
+    else error.value = requestError.response?.data?.error || "Comprueba tu conexión e inténtalo de nuevo.";
+    document.title = notFound.value ? "Análisis no encontrado | Homzy" : "Error | Homzy";
+  } finally {
+    if (currentRequest === requestNumber) loading.value = false;
+  }
+}
+
+function secureExternalLinks() {
+  articleContent.value?.querySelectorAll("a[href]").forEach((link) => {
+    try {
+      const destination = new URL(link.href, window.location.href);
+      if (destination.origin !== window.location.origin) {
+        link.target = "_blank";
+        const rel = new Set((link.rel || "").split(/\s+/).filter(Boolean));
+        rel.add("noopener");
+        rel.add("noreferrer");
+        link.rel = [...rel].join(" ");
+      }
+    } catch {
+      // Ignore malformed links retained in legacy content.
+    }
+  });
+}
+
+function isAffiliateLink(link) {
+  const rel = new Set((link.rel || "").split(/\s+/));
+  try {
+    const host = new URL(link.href, window.location.href).hostname;
+    return link.classList.contains("btn-buy") || rel.has("sponsored") || /(^|\.)amazon\.[a-z.]+$/i.test(host) || /(^|\.)amzn\.to$/i.test(host);
+  } catch {
+    return false;
+  }
+}
+
+function trackAffiliateClick(event) {
+  const link = event.target.closest("a[href]");
+  if (!link || !articleContent.value?.contains(link) || !isAffiliateLink(link)) return;
+  const affiliateLinks = [...articleContent.value.querySelectorAll("a[href]")].filter(isAffiliateLink);
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({
+    event: "affiliate_click",
+    article_id: article.value.id,
+    article_slug: article.value.slug,
+    cta_text: link.textContent.trim(),
+    destination: link.href,
+    position: affiliateLinks.indexOf(link) + 1,
+    context: link.closest("table") ? "comparison_table" : link.classList.contains("btn-buy") ? "cta" : "article_body",
+  });
+}
 
 function updateMeta(art) {
   if (!art) return;
-  // Update Title
-  document.title = art.seo_title || art.title + " | Homzy";
-  
-  // Update Description
-  let desc = document.querySelector('meta[name="description"]');
-  if (!desc) {
-    desc = document.createElement('meta');
-    desc.name = 'description';
-    document.head.appendChild(desc);
-  }
-  desc.content = art.meta_description || "";
+  const title = art.seo_title || `${art.title} | Homzy`;
+  const description = art.meta_description || "";
+  const canonical = art.canonical_url || window.location.href;
+  document.title = title;
 
-  // Update Keywords
-  let keys = document.querySelector('meta[name="keywords"]');
-  if (!keys) {
-    keys = document.createElement('meta');
-    keys.name = 'keywords';
-    document.head.appendChild(keys);
-  }
-  keys.content = art.seo_keywords || "";
+  addMeta("name", "description", description);
+  if (art.seo_keywords) addMeta("name", "keywords", art.seo_keywords);
+  addMeta("property", "og:title", title);
+  addMeta("property", "og:description", description);
+  addMeta("property", "og:type", "article");
+  addMeta("property", "og:url", canonical);
+  if (art.image_url) addMeta("property", "og:image", art.image_url);
+  addMeta("name", "twitter:card", art.image_url ? "summary_large_image" : "summary");
+  addMeta("name", "twitter:title", title);
+  addMeta("name", "twitter:description", description);
+  if (art.image_url) addMeta("name", "twitter:image", art.image_url);
 
-  // Update Canonical
-  let canon = document.querySelector('link[rel="canonical"]');
-  if (!canon) {
-    canon = document.createElement('link');
-    canon.rel = 'canonical';
-    document.head.appendChild(canon);
-  }
-  canon.href = art.canonical_url || window.location.href;
+  const canon = document.createElement("link");
+  canon.rel = "canonical";
+  canon.href = canonical;
+  canon.dataset.homzyArticleMeta = "true";
+  document.head.appendChild(canon);
 }
 
+function addMeta(attribute, key, content) {
+  const element = document.createElement("meta");
+  element.setAttribute(attribute, key);
+  element.content = content;
+  element.dataset.homzyArticleMeta = "true";
+  document.head.appendChild(element);
+}
+
+function clearMeta() {
+  document.querySelectorAll('[data-homzy-article-meta="true"]').forEach((element) => element.remove());
+  document.title = "Homzy";
+}
+
+watch(() => route.params.slug, (slug) => {
+  if (slug) loadArticle(slug);
+}, { immediate: true });
+
+onMounted(() => {
+  window.addEventListener('scroll', updateProgress);
+  loadCategories().catch(() => {});
+});
+
 onUnmounted(() => {
+  requestNumber += 1;
   window.removeEventListener('scroll', updateProgress);
+  clearMeta();
 });
 </script>
+
+<style scoped>
+.article-state { min-height: 55vh; display: grid; place-items: center; align-content: center; gap: 16px; text-align: center; }
+.affiliate-disclosure { max-width: 860px; margin: 0 auto 24px; padding: 14px 18px; border: 1px solid #fde68a; border-radius: var(--radius-md); background: #fffbeb; color: #78350f; font-size: 14px; line-height: 1.5; }
+@media (max-width: 640px) { .affiliate-disclosure { text-align: left; } }
+</style>

@@ -8,19 +8,20 @@
       <h2 class="hero-title">
         Diseño y <span class="text-gradient">Tecnología</span> <br/> para tu Hogar
       </h2>
-      <p class="hero-subtitle">Descubre productos honestos que transforman tu espacio habitual con un toque de distinción.</p>
+      <p class="hero-subtitle">Descubre análisis claros de productos que pueden mejorar tu espacio y tu día a día.</p>
       
-      <div class="hero-search">
-        <input type="text" placeholder="¿Qué estás buscando hoy?" />
-        <button class="search-btn"><SearchIcon :size="20" /></button>
-      </div>
+      <form class="hero-search" role="search" @submit.prevent="submitSearch">
+        <label class="sr-only" for="home-search">Buscar artículos</label>
+        <input id="home-search" v-model="searchQuery" type="search" placeholder="¿Qué estás buscando hoy?" />
+        <button class="search-btn" type="submit" aria-label="Buscar"><SearchIcon :size="20" /></button>
+      </form>
     </div>
   </section>
 
   <!-- Featured Section -->
   <section v-if="featuredArticle" class="section reveal delay-1" style="padding-top: 0">
     <div class="container">
-      <div class="featured-card glass card--hover" @click="$router.push(`/analisis/${featuredArticle.slug}`)">
+      <RouterLink class="featured-card glass card--hover" :to="`/analisis/${featuredArticle.slug}`">
         <div class="featured-badge">Nueva Reseña Destacada</div>
         <div class="featured-grid">
           <div class="featured-thumb" :style="getThumbStyle(featuredArticle.id)">
@@ -29,17 +30,17 @@
           <div class="featured-info">
             <span class="category-chip">{{ categoryName(featuredArticle.category_id) || "Análisis Pro" }}</span>
             <h3>{{ featuredArticle.title }}</h3>
-            <p>{{ featuredArticle.meta_description || "Descubre nuestro veredicto detallado sobre este innovador producto..." }}</p>
+            <p>{{ featuredArticle.meta_description || "Consulta las características, ventajas y aspectos a considerar antes de elegir este producto." }}</p>
             <div class="featured-footer">
               <div class="user-meta">
                 <div class="avatar-mini">H</div>
                 <span>Por Equipo Homzy</span>
               </div>
-              <button class="btn-primary-slim">Leer Análisis Completo</button>
+              <span class="btn-primary-slim">Leer análisis completo</span>
             </div>
           </div>
         </div>
-      </div>
+      </RouterLink>
     </div>
   </section>
 
@@ -47,10 +48,10 @@
     <div class="container">
       <div class="section-head">
         <h3>Explora por Categoría</h3>
-        <p>Miles de productos organizados para tu comodidad</p>
+        <p>Análisis organizados para encontrar fácilmente lo que te interesa</p>
       </div>
       <div class="category-row">
-        <div v-for="(category, index) in categories" :key="category.id" 
+        <RouterLink v-for="(category, index) in categories" :key="category.id" :to="`/categoria/${category.slug}`"
              class="category-card glass reveal" 
              :class="'delay-' + (index + 2)">
           <div class="category-icon">
@@ -58,7 +59,7 @@
           </div>
           <h4>{{ category.name }}</h4>
           <span>{{ categoryCount(category.id) }} artículos</span>
-        </div>
+        </RouterLink>
       </div>
     </div>
   </section>
@@ -67,7 +68,7 @@
     <div class="container">
       <div class="section-head">
         <h3>Reseñas Recientes</h3>
-        <p>Análisis recién salidos del laboratorio</p>
+        <p>Los últimos análisis publicados por nuestro equipo editorial</p>
       </div>
       <div class="grid grid-3">
         <RouterLink
@@ -86,12 +87,9 @@
               <span class="date">{{ formatDate(article.published_at || article.created_at) }}</span>
             </div>
             <h4>{{ article.title }}</h4>
-            <p class="meta-desc">{{ article.meta_description || "Descubre nuestro análisis detallada sobre este producto..." }}</p>
+            <p class="meta-desc">{{ article.meta_description || "Consulta nuestro análisis editorial de este producto." }}</p>
             <div class="review-footer">
-              <div class="rating-box">
-                <StarIcon v-for="i in 5" :key="i" :size="12" :class="{ 'filled': i <= 5 }" />
-                <span class="rating-val">5.0</span>
-              </div>
+              <span class="editorial-label">Análisis editorial</span>
               <span class="read-time"><ClockIcon :size="12" class="mr-4" /> {{ readTime(article.html) }} min</span>
             </div>
           </div>
@@ -118,17 +116,17 @@
         <div class="trust-item reveal delay-1">
           <div class="trust-icon"><ShieldCheckIcon :size="32" /></div>
           <h4>Sin Patrocinios</h4>
-          <p>No aceptamos pagos por reseñas. Nuestra opinión es 100% independiente y real.</p>
+          <p>No aceptamos pagos por reseñas. Los enlaces de afiliado no determinan nuestras conclusiones editoriales.</p>
         </div>
         <div class="trust-item reveal delay-2">
           <div class="trust-icon"><ZapIcon :size="32" /></div>
-          <h4>Análisis en Profundidad</h4>
-          <p>Pasamos semanas probando cada gadget para que tú solo necesites 5 minutos.</p>
+          <h4>Investigación en Profundidad</h4>
+          <p>Contrastamos especificaciones, documentación y opiniones disponibles para resumir lo importante.</p>
         </div>
         <div class="trust-item reveal delay-3">
           <div class="trust-icon"><AwardIcon :size="32" /></div>
           <h4>Selección Curada</h4>
-          <p>Solo los productos que realmente usaríamos en nuestra propia casa.</p>
+          <p>Priorizamos utilidad, relación calidad-precio y adecuación a distintos hogares.</p>
         </div>
       </div>
     </div>
@@ -138,8 +136,8 @@
   <section class="steps-section reveal delay-1">
     <div class="container">
       <div class="section-head">
-        <h3>Cómo probamos cada producto</h3>
-        <p>Nuestro proceso riguroso para garantizar tu satisfacción</p>
+        <h3>Cómo elaboramos nuestros análisis</h3>
+        <p>Un proceso editorial para ofrecer información útil y verificable</p>
       </div>
       <div class="steps-grid">
         <div class="step-card reveal delay-1">
@@ -149,18 +147,18 @@
         </div>
         <div class="step-card reveal delay-2">
           <div class="step-num">02</div>
-          <h4>Prueba de Usuario</h4>
-          <p>Utilizamos el producto en contextos reales durante al menos 15 días.</p>
+          <h4>Investigación</h4>
+          <p>Revisamos especificaciones, manuales, información del fabricante y opiniones de usuarios.</p>
         </div>
         <div class="step-card reveal delay-3">
           <div class="step-num">03</div>
           <h4>Análisis Técnico</h4>
-          <p>Medimos durabilidad, batería y rendimiento bajo estrés.</p>
+          <p>Comparamos prestaciones, limitaciones y alternativas con criterios consistentes.</p>
         </div>
         <div class="step-card reveal delay-4">
           <div class="step-num">04</div>
           <h4>Veredicto Final</h4>
-          <p>Asignamos una puntuación honesta basada en la relación calidad/precio.</p>
+          <p>Resumimos para quién puede ser adecuado el producto y qué conviene comprobar antes de comprar.</p>
         </div>
       </div>
     </div>
@@ -172,7 +170,7 @@
       <div class="cta-banner">
         <div class="cta-content">
           <h2>Únete a la comunidad Homzy</h2>
-          <p>Recibe los mejores gadgets y consejos de diseño minimalista cada semana en tu bandeja de entrada.</p>
+          <p>Recibe nuevos análisis y consejos de diseño minimalista en tu bandeja de entrada.</p>
           <form class="cta-form" @submit.prevent="handleSubscribe">
             <input type="email" v-model="email" placeholder="Escribe tu email aquí..." required />
             <button type="submit">Suscribirme</button>
@@ -185,7 +183,7 @@
 
 <script setup>
 import { onMounted, ref, computed } from "vue";
-import { RouterLink } from "vue-router";
+import { RouterLink, useRouter } from "vue-router";
 import api from "../api.js";
 import { useToastStore } from "../stores/toast.js";
 import { 
@@ -197,7 +195,6 @@ import {
   MusicIcon, 
   LampIcon, 
   ZapIcon,
-  StarIcon,
   ClockIcon,
   PackageIcon,
   ShieldCheckIcon,
@@ -210,6 +207,13 @@ const categories = ref([]);
 const showAll = ref(false);
 const email = ref("");
 const toast = useToastStore();
+const router = useRouter();
+const searchQuery = ref("");
+
+function submitSearch() {
+  const query = searchQuery.value.trim();
+  if (query) router.push({ path: "/buscar", query: { q: query } });
+}
 
 const featuredArticle = computed(() => {
   return articles.value.find(a => a.is_featured === 1) || articles.value[0];

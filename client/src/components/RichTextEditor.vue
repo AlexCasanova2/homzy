@@ -1,6 +1,11 @@
 <template>
   <div v-if="editor" class="editor-container">
     <div class="editor-toolbar">
+      <button type="button" @click="sourceMode = !sourceMode" :class="{ 'is-active': sourceMode }" title="Editar HTML sin alterar la estructura">
+        HTML
+      </button>
+      <template v-if="!sourceMode">
+      <div class="toolbar-divider"></div>
       <button 
         type="button"
         @click="editor.chain().focus().toggleBold().run()" 
@@ -85,15 +90,29 @@
       >
         <RedoIcon :size="18" />
       </button>
+      </template>
     </div>
-    <editor-content :editor="editor" class="editor-content-area" />
+    <textarea
+      v-if="sourceMode"
+      v-model="sourceValue"
+      class="source-editor"
+      spellcheck="false"
+      aria-label="Código HTML del artículo"
+      @input="emit('update:modelValue', sourceValue)"
+    ></textarea>
+    <editor-content v-else :editor="editor" class="editor-content-area" />
   </div>
 </template>
 
 <script setup>
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
-import { watch } from 'vue'
+import Link from '@tiptap/extension-link'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableHeader } from '@tiptap/extension-table-header'
+import { TableCell } from '@tiptap/extension-table-cell'
+import { ref, watch } from 'vue'
 import {
   BoldIcon,
   ItalicIcon,
@@ -115,11 +134,23 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
+const sourceMode = ref(/<(article|section|figure|picture|div|span)\b/i.test(props.modelValue))
+const sourceValue = ref(props.modelValue)
 
 const editor = useEditor({
   content: props.modelValue,
   extensions: [
-    StarterKit,
+    StarterKit.configure({ link: false }),
+    Link.configure({
+      openOnClick: false,
+      autolink: false,
+      linkOnPaste: false,
+      HTMLAttributes: {},
+    }),
+    Table.configure({ resizable: true }),
+    TableRow,
+    TableHeader,
+    TableCell,
   ],
   onUpdate: ({ editor }) => {
     emit('update:modelValue', editor.getHTML())
@@ -127,6 +158,8 @@ const editor = useEditor({
 })
 
 watch(() => props.modelValue, (value) => {
+  sourceValue.value = value
+  if (!editor.value) return
   const isSame = editor.value.getHTML() === value
   if (isSame) return
   editor.value.commands.setContent(value, false)
@@ -206,6 +239,15 @@ watch(() => props.modelValue, (value) => {
   overflow-y: auto;
 }
 
+.source-editor {
+  min-height: 420px;
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  resize: vertical;
+  font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 /* TipTap Basic Styles */
 .ProseMirror {
   outline: none;
@@ -237,4 +279,9 @@ watch(() => props.modelValue, (value) => {
   font-family: monospace;
   margin: 1em 0;
 }
+.ProseMirror table { width: 100%; border-collapse: collapse; margin: 1em 0; table-layout: fixed; }
+.ProseMirror th, .ProseMirror td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+.ProseMirror th { background: #f1f5f9; text-align: left; }
+.ProseMirror a { color: var(--primary); text-decoration: underline; }
+.ProseMirror a.btn-buy { display: inline-block; padding: 10px 16px; border-radius: 10px; background: var(--primary); color: white; text-decoration: none; font-weight: 700; }
 </style>
