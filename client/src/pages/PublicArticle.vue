@@ -408,13 +408,12 @@ onUnmounted(() => {
 .article-state { min-height: 55vh; display: grid; place-items: center; align-content: center; gap: 16px; text-align: center; }
 .article-cta-banner { margin: 48px 0 40px; }
 
-/* Una sola columna: lectura centrada y más ancha */
-.article-main { max-width: 800px; margin: 0 auto; }
+/* Una sola columna al ancho completo del contenedor, como el resto de bloques */
+.article-main { width: 100%; }
 .article-main :deep(.article-content-v3),
 .article-main :deep(.article-toc) { max-width: none; }
 
 .article-fact-strip {
-  max-width: 800px;
   margin: 48px auto 0;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
