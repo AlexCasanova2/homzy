@@ -220,7 +220,14 @@ app.get("/api/newsletter/subscribers", authenticate, ah(async (_req, res) => {
 
 // Products
 app.get("/api/products", authenticate, ah(async (_req, res) => {
-  const rows = (await all("SELECT * FROM products ORDER BY created_at DESC")).map((row) => ({
+  // article: el artículo vinculado más reciente, para enlazarlo desde el admin.
+  const rows = (await all(
+    `SELECT p.*,
+       (SELECT jsonb_build_object('id', a.id, 'slug', a.slug, 'status', a.status, 'title', a.title)
+        FROM articles a WHERE a.product_id = p.id
+        ORDER BY a.created_at DESC LIMIT 1) AS article
+     FROM products p ORDER BY p.created_at DESC`
+  )).map((row) => ({
     ...row,
     features: safeJsonParse(row.features, []),
     images: safeJsonParse(row.images, []),

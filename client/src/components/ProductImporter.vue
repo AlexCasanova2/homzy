@@ -80,6 +80,25 @@
               </td>
               <td class="text-right">
                 <div class="row-actions">
+                  <button
+                    v-if="product.article"
+                    class="secondary small"
+                    @click="$router.push(`/admin/articles?edit=${product.article.id}`)"
+                    :title="`Editar artículo: ${product.article.title}`"
+                  >
+                    <div class="flex-center">
+                      <FileTextIcon :size="14" class="mr-8" />
+                      Artículo
+                    </div>
+                  </button>
+                  <button
+                    v-if="product.article?.status === 'published'"
+                    class="secondary small"
+                    @click="openInFrontend(product.article)"
+                    title="Ver el artículo publicado en la web"
+                  >
+                    <ExternalLinkIcon :size="14" />
+                  </button>
                   <button class="secondary small" @click="copyProductData(product)" title="Copiar datos del producto (JSON) para redacción externa">
                     <div class="flex-center">
                       <CopyIcon :size="14" class="mr-8" />
@@ -132,20 +151,6 @@
       </div>
     </div>
 
-    <!-- Preview Modal/Section -->
-    <section v-if="generated" class="card mt-32 border-primary">
-      <div class="section-header">
-        <span class="header-icon"><FileTextIcon :size="20" /></span>
-        <div>
-          <h3>Borrador Generado</h3>
-          <p>ID: {{ generated.id }}</p>
-        </div>
-        <button class="secondary small ml-auto" @click="generated = null">Cerrar</button>
-      </div>
-      <div class="article-preview-container">
-        <div class="article-html-v3" v-html="generated.html"></div>
-      </div>
-    </section>
   </div>
 </template>
 
@@ -368,6 +373,7 @@ import {
   CopyIcon,
   RefreshCwIcon,
   Trash2Icon,
+  ExternalLinkIcon,
 } from "lucide-vue-next";
 import { useToastStore } from "../stores/toast.js";
 
@@ -375,7 +381,6 @@ const products = ref([]);
 const categories = ref([]);
 const affiliateLinks = ref([]);
 const form = ref({ url: "", categoryId: "" });
-const generated = ref(null);
 const isGenerating = ref(false);
 const generatingId = ref(null);
 const isImporting = ref(false);
@@ -457,6 +462,10 @@ async function removeProduct(product) {
   }
 }
 
+function openInFrontend(article) {
+  window.open(`/analisis/${article.slug}`, "_blank", "noopener");
+}
+
 async function copyProductData(product) {
   const payload = {
     asin: product.asin,
@@ -492,8 +501,8 @@ async function generateArticle(product) {
       categoryId: product.category_id,
       ...(affiliate ? { affiliateLinkId: affiliate.id } : {}),
     });
-    generated.value = data;
-    toast.success("¡Artículo generado con éxito!");
+    await loadProducts();
+    toast.success("¡Borrador generado con éxito!", { label: "Abrir artículo", to: `/admin/articles?edit=${data.id}` });
   } catch (error) {
     let message = error?.response?.data?.error || error?.message || "Error al generar.";
     if (!affiliate) {

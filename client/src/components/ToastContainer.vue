@@ -14,6 +14,9 @@
         </div>
         <div class="toast-content">
           {{ toast.message }}
+          <button v-if="toast.action" class="toast-action" @click="runAction(toast)">
+            {{ toast.action.label }}
+          </button>
         </div>
         <button class="toast-close" @click="store.remove(toast.id)">
           <XIcon :size="14" />
@@ -24,10 +27,17 @@
 </template>
 
 <script setup>
+import { useRouter } from 'vue-router'
 import { useToastStore } from '../stores/toast'
 import { CheckCircleIcon, AlertCircleIcon, InfoIcon, XIcon } from 'lucide-vue-next'
 
 const store = useToastStore()
+const router = useRouter()
+
+function runAction(toast) {
+  store.remove(toast.id)
+  if (toast.action?.to) router.push(toast.action.to)
+}
 </script>
 
 <style scoped>
@@ -83,6 +93,23 @@ const store = useToastStore()
   flex: 1;
   font-size: 14px;
   font-weight: 500;
+}
+
+.toast-action {
+  display: block;
+  margin-top: 8px;
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toast-action:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .toast-close {

@@ -34,8 +34,9 @@
               </td>
               <td class="text-right">
                 <div class="action-buttons">
-                  <button class="secondary small" @click="preview(article)" title="Previsualizar">
-                    <EyeIcon :size="14" />
+                  <button class="secondary small" @click="preview(article)" :title="article.status === 'published' ? 'Ver en la web' : 'Previsualizar borrador'">
+                    <ExternalLinkIcon v-if="article.status === 'published'" :size="14" />
+                    <EyeIcon v-else :size="14" />
                   </button>
                   <button class="secondary small" @click="startEdit(article)" title="Editar">
                     <Edit3Icon :size="14" />
@@ -202,7 +203,10 @@
           </div>
         </div>
         <div class="modal-body">
-          <div class="article-preview-content" v-html="activePreview.html"></div>
+          <!-- Misma clase que la web pública: la previsualización es fiel al resultado final -->
+          <div class="article-preview-content">
+            <div class="article-content-v3" v-html="activePreview.html"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -211,6 +215,7 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref, computed } from "vue";
+import { useRoute } from "vue-router";
 import api from "../api.js";
 import RichTextEditor from "./RichTextEditor.vue";
 import { useToastStore } from "../stores/toast.js";
@@ -223,7 +228,8 @@ import {
   XIcon,
   PlusIcon,
   ArrowLeftIcon,
-  Edit3Icon
+  Edit3Icon,
+  ExternalLinkIcon
 } from "lucide-vue-next";
 
 const articles = ref([]);
@@ -390,6 +396,11 @@ async function updateArticle() {
 }
 
 function preview(article) {
+  // Publicado: se abre el artículo real en la web. Borrador: previsualización fiel en el admin.
+  if (article.status === "published" && article.slug) {
+    window.open(`/analisis/${article.slug}`, "_blank", "noopener");
+    return;
+  }
   activePreview.value = article;
 }
 
@@ -477,9 +488,17 @@ async function remove(article) {
   }
 }
 
+const route = useRoute();
+
 onMounted(async () => {
   await loadTaxonomy();
   await loadArticles();
+  // Deep-link desde toasts y desde el listado de productos: /admin/articles?edit={id}
+  const editId = route.query.edit;
+  if (editId) {
+    const target = articles.value.find((a) => a.id === editId);
+    if (target) startEdit(target);
+  }
 });
 
 onUnmounted(() => {
@@ -721,8 +740,8 @@ onUnmounted(() => {
   background: #fff;
 }
 
-.article-preview-content {
-  font-size: 15px;
+.article-preview-content .article-content-v3 {
+  margin: 0 auto;
 }
 
 @media (max-width: 700px) {
