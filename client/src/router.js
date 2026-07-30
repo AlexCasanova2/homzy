@@ -46,6 +46,12 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(to, _from, savedPosition) {
+    // Atrás/adelante del navegador conserva la posición; navegar a una página nueva empieza arriba.
+    if (savedPosition) return savedPosition;
+    if (to.hash) return { el: to.hash, behavior: "smooth" };
+    return { top: 0 };
+  },
 });
 
 router.beforeEach(async (to) => {

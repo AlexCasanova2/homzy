@@ -52,8 +52,8 @@
         <h3>Explora por Categoría</h3>
         <p>Análisis organizados para encontrar fácilmente lo que te interesa</p>
       </div>
-      <div v-if="categories.length" class="category-row">
-        <RouterLink v-for="(category, index) in categories" :key="category.id" :to="`/categoria/${category.slug}`"
+      <div v-if="rootCategories.length" class="category-row">
+        <RouterLink v-for="(category, index) in rootCategories" :key="category.id" :to="`/categoria/${category.slug}`"
              class="category-card glass reveal"
              :class="'delay-' + (index + 2)">
           <div class="category-icon">
@@ -228,6 +228,9 @@ const featuredArticle = computed(() => {
   return articles.value.find(a => a.is_featured === 1) || articles.value[0];
 });
 
+// En la portada solo se muestran las categorías de primer nivel.
+const rootCategories = computed(() => categories.value.filter((category) => !category.parent_id));
+
 const articlesToShow = computed(() => {
   if (!featuredArticle.value) return articles.value;
   
@@ -276,8 +279,20 @@ function categoryName(id) {
   return categories.value.find((cat) => cat.id === id)?.name || "";
 }
 
+// Cuenta los artículos de la categoría incluyendo todas sus subcategorías.
 function categoryCount(id) {
-  return articles.value.filter((article) => article.category_id === id).length || 0;
+  const ids = new Set([id]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const category of categories.value) {
+      if (category.parent_id && ids.has(category.parent_id) && !ids.has(category.id)) {
+        ids.add(category.id);
+        added = true;
+      }
+    }
+  }
+  return articles.value.filter((article) => ids.has(article.category_id)).length || 0;
 }
 
 function readTime(html = "") {
