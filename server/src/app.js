@@ -24,10 +24,13 @@ import { createAuthMiddleware } from "./auth.js";
 import { resolveAffiliateUrl, validateAffiliateUrl } from "./services/affiliate.js";
 import { hasAffiliateLinkForAsin, prepareGeneratedArticleHtml, sanitizeArticleHtml } from "./services/articleHtml.js";
 
-if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET is required in production");
+// En producción sin JWT_SECRET no hay fallback: el login/verify fallará con 500,
+// pero la app arranca y /api/health permite diagnosticar qué variable falta.
+const isProduction = process.env.NODE_ENV === "production";
+if (isProduction && !process.env.JWT_SECRET) {
+  console.error("JWT_SECRET is missing in production: auth routes will fail until it is set");
 }
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-123";
+const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? null : "dev-secret-123");
 
 export const app = express();
 const llmConfig = resolveLlmConfig();
@@ -59,7 +62,16 @@ app.use("/api", (req, _res, next) => {
 });
 
 app.get("/api/health", ah(async (_req, res) => {
-  res.json({ ok: true, time: nowIso() });
+  res.json({
+    ok: true,
+    time: nowIso(),
+    env: {
+      jwtSecret: Boolean(process.env.JWT_SECRET),
+      databaseUrl: Boolean(process.env.DATABASE_URL),
+      amazonStoreId: Boolean(process.env.AMAZON_STORE_ID),
+      nodeEnv: process.env.NODE_ENV || "(sin definir)",
+    },
+  });
 }));
 
 // Slugs are UNIQUE per table; append -2, -3... instead of failing the insert.
