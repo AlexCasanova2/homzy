@@ -2,8 +2,19 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm --prefix server install && npm --prefix client install && npm --prefix client run build",
   "outputDirectory": "client/dist",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "client/dist/index.html"
+    }
+  },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/sitemap.xml", "destination": "/api/index" },
+    { "source": "/robots.txt", "destination": "/api/index" },
+    { "source": "/analisis/:slug", "destination": "/api/index" },
+    { "source": "/categoria/:slug", "destination": "/api/index" },
+    { "source": "/categorias", "destination": "/api/index" },
+    { "source": "/buscar", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

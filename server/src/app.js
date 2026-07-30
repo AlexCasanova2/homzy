@@ -23,6 +23,7 @@ import { getRelatedProducts } from "./services/relatedProducts.js";
 import { createAuthMiddleware } from "./auth.js";
 import { resolveAffiliateUrl, validateAffiliateUrl } from "./services/affiliate.js";
 import { hasAffiliateLinkForAsin, prepareGeneratedArticleHtml, sanitizeArticleHtml } from "./services/articleHtml.js";
+import { DEFAULT_DESCRIPTION, SITE_NAME, escapeHtml, renderShell, siteOrigin } from "./services/seoMeta.js";
 
 // En producción sin JWT_SECRET no hay fallback: el login/verify fallará con 500,
 // pero la app arranca y /api/health permite diagnosticar qué variable falta.
@@ -940,6 +941,175 @@ async function reconcileScheduledArticles() {
     if (result.error) console.warn(`[scheduler] ${article.id}: ${result.error}`);
   }
 }
+
+// -- SEO: HTML con metas reales, sitemap y robots --
+// La SPA escribe title y metas por JavaScript, así que el HTML inicial era idéntico para
+// todas las URLs. Google renderiza JS pero tarde y peor; los crawlers de redes sociales
+// no lo ejecutan nunca. Estas rutas devuelven el mismo bundle con el <head> ya resuelto.
+
+// Cachea en CDN pero revalida en segundo plano: al publicar un artículo la meta se
+// actualiza sin esperar a que expire.
+const HTML_CACHE = "public, max-age=0, s-maxage=600, stale-while-revalidate=86400";
+
+function truncate(value, max = 160) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
+async function sendShell(req, res, meta) {
+  try {
+    const html = await renderShell(req, meta);
+    res.set("Content-Type", "text/html; charset=utf-8").set("Cache-Control", HTML_CACHE).send(html);
+  } catch (error) {
+    // Si el shell no se puede cargar, mejor que la plataforma sirva el estático de
+    // siempre que devolver un 500 y tumbar la página.
+    console.error("SEO shell failed:", error?.message || error);
+    res.redirect(302, "/index.html");
+  }
+}
+
+app.get("/analisis/:slug", ah(async (req, res) => {
+  const article = await one(
+    `SELECT title, slug, seo_title, meta_description, seo_keywords, canonical_url, image_url
+     FROM articles WHERE slug = $1 AND status = 'published'`,
+    [req.params.slug]
+  );
+  const origin = siteOrigin(req);
+
+  if (!article) {
+    return sendShell(req, res, {
+      title: `Análisis no encontrado | ${SITE_NAME}`,
+      description: "Este análisis no existe o ya no está disponible.",
+      robots: "noindex, follow",
+    });
+  }
+
+  await sendShell(req, res, {
+    title: article.seo_title || `${article.title} | ${SITE_NAME}`,
+    description: truncate(article.meta_description) || DEFAULT_DESCRIPTION,
+    keywords: article.seo_keywords || "",
+    canonical: article.canonical_url || `${origin}/analisis/${article.slug}`,
+    image: article.image_url || "",
+    type: "article",
+  });
+}));
+
+app.get("/categoria/:slug", ah(async (req, res) => {
+  const category = await one("SELECT name, slug FROM categories WHERE slug = $1", [req.params.slug]);
+  const origin = siteOrigin(req);
+
+  if (!category) {
+    return sendShell(req, res, {
+      title: `Categoría no encontrada | ${SITE_NAME}`,
+      description: "Esta categoría no existe o ha cambiado de dirección.",
+      robots: "noindex, follow",
+    });
+  }
+
+  await sendShell(req, res, {
+    title: `${category.name}: análisis y opiniones | ${SITE_NAME}`,
+    description: `Todos nuestros análisis de ${category.name.toLowerCase()}: especificaciones, pros, contras y para quién es cada producto.`,
+    canonical: `${origin}/categoria/${category.slug}`,
+  });
+}));
+
+app.get("/categorias", ah(async (req, res) => {
+  await sendShell(req, res, {
+    title: `Categorías | ${SITE_NAME}`,
+    description: "Explora todos los análisis de Homzy organizados por categoría.",
+    canonical: `${siteOrigin(req)}/categorias`,
+  });
+}));
+
+// Los resultados de búsqueda no aportan nada al índice y generan URLs infinitas.
+app.get("/buscar", ah(async (req, res) => {
+  await sendShell(req, res, {
+    title: `Buscar análisis | ${SITE_NAME}`,
+    description: "Busca entre todos los análisis de producto publicados en Homzy.",
+    robots: "noindex, follow",
+  });
+}));
+
+app.get("/sitemap.xml", ah(async (req, res) => {
+  const origin = siteOrigin(req);
+
+  const articles = await all(
+    `SELECT slug, published_at, created_at FROM articles
+     WHERE status = 'published' AND slug IS NOT NULL
+     ORDER BY coalesce(published_at, created_at) DESC`
+  );
+
+  // Solo categorías con artículos publicados: una categoría vacía en el sitemap es una
+  // página sin contenido que Google acaba marcando como de baja calidad.
+  const categories = await all(
+    `SELECT c.slug, max(coalesce(a.published_at, a.created_at)) AS lastmod
+     FROM categories c
+     JOIN article_categories ac ON ac.category_id = c.id
+     JOIN articles a ON a.id = ac.article_id AND a.status = 'published'
+     WHERE c.slug IS NOT NULL
+     GROUP BY c.slug
+     ORDER BY c.slug`
+  );
+
+  const newestArticle = articles[0]?.published_at || articles[0]?.created_at || null;
+  const day = (value) => (value ? new Date(value).toISOString().slice(0, 10) : null);
+
+  const urls = [
+    { loc: `${origin}/`, lastmod: day(newestArticle), changefreq: "daily", priority: "1.0" },
+    { loc: `${origin}/categorias`, lastmod: day(newestArticle), changefreq: "weekly", priority: "0.5" },
+    ...categories.map((category) => ({
+      loc: `${origin}/categoria/${category.slug}`,
+      lastmod: day(category.lastmod),
+      changefreq: "weekly",
+      priority: "0.7",
+    })),
+    ...articles.map((article) => ({
+      loc: `${origin}/analisis/${article.slug}`,
+      lastmod: day(article.published_at || article.created_at),
+      changefreq: "monthly",
+      priority: "0.9",
+    })),
+  ];
+
+  const body = urls
+    .map(({ loc, lastmod, changefreq, priority }) =>
+      [
+        "  <url>",
+        `    <loc>${escapeHtml(loc)}</loc>`,
+        lastmod ? `    <lastmod>${lastmod}</lastmod>` : "",
+        `    <changefreq>${changefreq}</changefreq>`,
+        `    <priority>${priority}</priority>`,
+        "  </url>",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .join("\n");
+
+  res
+    .set("Content-Type", "application/xml; charset=utf-8")
+    .set("Cache-Control", HTML_CACHE)
+    .send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`);
+}));
+
+app.get("/robots.txt", (req, res) => {
+  const origin = siteOrigin(req);
+  res
+    .set("Content-Type", "text/plain; charset=utf-8")
+    .set("Cache-Control", HTML_CACHE)
+    .send(
+      [
+        "User-agent: *",
+        "Allow: /",
+        "Disallow: /admin",
+        "Disallow: /login",
+        "Disallow: /buscar",
+        "",
+        `Sitemap: ${origin}/sitemap.xml`,
+        "",
+      ].join("\n")
+    );
+});
 
 app.use("/api", (_req, res) => res.status(404).json({ error: "API route not found" }));
 
