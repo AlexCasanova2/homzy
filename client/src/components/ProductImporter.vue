@@ -30,10 +30,27 @@
           <label>Categoría</label>
           <select v-model="form.categoryId">
             <option value="">Sin categoría</option>
-            <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-              {{ cat.name }}
+            <option v-for="cat in categoryOptions" :key="cat.id" :value="cat.id">
+              {{ indent(cat.depth) }}{{ cat.name }}
             </option>
+            <option value="__new__">＋ Crear nueva categoría…</option>
           </select>
+
+          <div v-if="form.categoryId === '__new__'" class="new-category-box">
+            <input v-model="newCategory.name" placeholder="Nombre de la nueva categoría" @keyup.enter="createCategory" />
+            <select v-model="newCategory.parentId">
+              <option value="">Sin padre (categoría raíz)</option>
+              <option v-for="cat in categoryOptions" :key="cat.id" :value="cat.id">
+                {{ indent(cat.depth) }}{{ cat.name }}
+              </option>
+            </select>
+            <div class="new-category-actions">
+              <button class="primary small" @click="createCategory" :disabled="creatingCategory || !newCategory.name.trim()">
+                {{ creatingCategory ? "Creando..." : "Crear y asignar" }}
+              </button>
+              <button class="secondary small" @click="form.categoryId = ''">Cancelar</button>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -166,6 +183,21 @@
 .font-bold { font-weight: 700; }
 .flex-center { display: flex; align-items: center; justify-content: center; }
 .row-actions { display: inline-flex; gap: 8px; }
+
+.new-category-box {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--primary-light);
+  display: grid;
+  gap: 10px;
+}
+
+.new-category-actions {
+  display: flex;
+  gap: 8px;
+}
 
 .section-header {
   display: flex;
@@ -424,7 +456,9 @@ async function importProduct() {
   isImporting.value = true;
   importError.value = "";
   try {
-    await api.post("/products/import", form.value);
+    const payload = { url: form.value.url };
+    if (form.value.categoryId && form.value.categoryId !== "__new__") payload.categoryId = form.value.categoryId;
+    await api.post("/products/import", payload);
     form.value.url = "";
     await loadProducts();
   } catch (error) {
@@ -464,6 +498,50 @@ async function removeProduct(product) {
 
 function openInFrontend(article) {
   window.open(`/analisis/${article.slug}`, "_blank", "noopener");
+}
+
+// Árbol de categorías aplanado en orden padre→hijas, con profundidad para la sangría.
+const categoryOptions = computed(() => {
+  const byParent = new Map();
+  for (const cat of categories.value) {
+    const key = cat.parent_id || null;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(cat);
+  }
+  const result = [];
+  const walk = (parentId, depth) => {
+    for (const cat of (byParent.get(parentId) || []).sort((a, b) => a.name.localeCompare(b.name))) {
+      result.push({ ...cat, depth });
+      walk(cat.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return result;
+});
+
+function indent(depth) {
+  return depth ? `${"   ".repeat(depth)}└ ` : "";
+}
+
+const newCategory = ref({ name: "", parentId: "" });
+const creatingCategory = ref(false);
+
+async function createCategory() {
+  const name = newCategory.value.name.trim();
+  if (!name) return;
+  creatingCategory.value = true;
+  try {
+    const { data } = await api.post("/categories", { name, parentId: newCategory.value.parentId || null });
+    const { data: cats } = await api.get("/categories");
+    categories.value = cats;
+    form.value.categoryId = data.id;
+    newCategory.value = { name: "", parentId: "" };
+    toast.success(`Categoría "${data.name}" creada y asignada`);
+  } catch (error) {
+    toast.error(error?.response?.data?.error || "No se pudo crear la categoría.");
+  } finally {
+    creatingCategory.value = false;
+  }
 }
 
 async function copyProductData(product) {
