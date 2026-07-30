@@ -69,8 +69,9 @@ jobs:
 
       - name: Install production dependencies and restart Passenger
         if: steps.config.outputs.ready == 'true'
+        # bash -lc: Node está instalado vía nvm en el hosting y solo se carga en shells de login.
         run: |
           ssh -i ~/.ssh/deploy_key "${{ secrets.DINAHOSTING_SSH_USER }}@${{ secrets.DINAHOSTING_SSH_HOST }}" \
-            "cd '${{ secrets.DINAHOSTING_DEPLOY_PATH }}' \
+            "bash -lc 'cd ${{ secrets.DINAHOSTING_DEPLOY_PATH }} \
              && npm --prefix server install --omit=dev \
-             && mkdir -p tmp && touch tmp/restart.txt"
+             && mkdir -p tmp && touch tmp/restart.txt'"
