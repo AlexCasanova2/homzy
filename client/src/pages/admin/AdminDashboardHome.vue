@@ -258,7 +258,7 @@ onMounted(loadStats);
 }
 
 /* Soft Backgrounds */
-.bg-blue-soft { background: #eff6ff; }
+.bg-blue-soft { background: var(--primary-light); }
 .bg-purple-soft { background: #faf5ff; }
 .bg-orange-soft { background: #fffaf2; }
 .bg-green-soft { background: #f0fdf4; }

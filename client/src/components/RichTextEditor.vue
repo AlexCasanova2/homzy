@@ -212,7 +212,7 @@ watch(() => props.modelValue, (value) => {
   background: var(--primary);
   color: #fff;
   border-color: var(--primary);
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 2px 4px rgba(176, 85, 47, 0.2);
 }
 
 .editor-toolbar button:disabled {
@@ -222,7 +222,7 @@ watch(() => props.modelValue, (value) => {
 
 .editor-container:focus-within {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 3px rgba(176, 85, 47, 0.1);
 }
 
 .toolbar-divider {

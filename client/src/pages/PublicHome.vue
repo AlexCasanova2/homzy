@@ -5,6 +5,7 @@
   <section class="hero-main reveal">
     <div class="hero-bg-image" style="background-image: url('/hero.png')"></div>
     <div class="container hero-content">
+      <span class="hero-eyebrow">Análisis honestos, sin patrocinios</span>
       <h2 class="hero-title">
         Diseño y <span class="text-gradient">Tecnología</span> <br/> para tu Hogar
       </h2>
@@ -47,6 +48,7 @@
   <section class="section reveal delay-2" id="categorias">
     <div class="container">
       <div class="section-head">
+        <span class="eyebrow">Catálogo</span>
         <h3>Explora por Categoría</h3>
         <p>Análisis organizados para encontrar fácilmente lo que te interesa</p>
       </div>
@@ -68,6 +70,7 @@
   <section class="section reveal delay-4">
     <div class="container">
       <div class="section-head">
+        <span class="eyebrow">Lo último</span>
         <h3>Reseñas Recientes</h3>
         <p>Los últimos análisis publicados por nuestro equipo editorial</p>
       </div>
@@ -113,6 +116,7 @@
   <section class="trust-section reveal delay-3">
     <div class="container">
       <div class="section-head">
+        <span class="eyebrow">Nuestro compromiso</span>
         <h3>El Estándar Homzy</h3>
         <p>Nuestro compromiso con la honestidad y la calidad</p>
       </div>
@@ -140,6 +144,7 @@
   <section class="steps-section reveal delay-1">
     <div class="container">
       <div class="section-head">
+        <span class="eyebrow">Método</span>
         <h3>Cómo elaboramos nuestros análisis</h3>
         <p>Un proceso editorial para ofrecer información útil y verificable</p>
       </div>

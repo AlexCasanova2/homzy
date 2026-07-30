@@ -69,7 +69,7 @@ const store = useToastStore()
 }
 
 .toast-item.info {
-  background: rgba(37, 99, 235, 0.9);
+  background: rgba(176, 85, 47, 0.9);
   color: white;
   border-color: rgba(255, 255, 255, 0.2);
 }
