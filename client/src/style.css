@@ -1526,6 +1526,15 @@ label {
   margin: 40px 0;
 }
 
+/* Tablas comparativas (con cabecera): columnas de datos compactas y sin cortes
+   ("Ver oferta", precios); la primera columna (nombre del producto) absorbe el
+   ancho restante y es la única que envuelve. */
+.article-content-v3 table:has(thead) th:not(:first-child),
+.article-content-v3 table:has(thead) td:not(:first-child) {
+  white-space: nowrap;
+  width: 1%;
+}
+
 /* Tables get wrapped in .table-wrap at render time for horizontal scroll on mobile. */
 .article-content-v3 .table-wrap {
   overflow-x: auto;
