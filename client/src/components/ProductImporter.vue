@@ -37,7 +37,7 @@
           </select>
 
           <div v-if="form.categoryId === '__new__'" class="new-category-box">
-            <input v-model="newCategory.name" placeholder="Nombre de la nueva categoría" @keyup.enter="createCategory" />
+            <input v-model="newCategory.name" placeholder="Nombre de la nueva categoría" @keyup.enter="createCategory(true)" />
             <select v-model="newCategory.parentId">
               <option value="">Sin padre (categoría raíz)</option>
               <option v-for="cat in categoryOptions" :key="cat.id" :value="cat.id">
@@ -45,8 +45,11 @@
               </option>
             </select>
             <div class="new-category-actions">
-              <button class="primary small" @click="createCategory" :disabled="creatingCategory || !newCategory.name.trim()">
+              <button class="primary small" @click="createCategory(true)" :disabled="creatingCategory || !newCategory.name.trim()">
                 {{ creatingCategory ? "Creando..." : "Crear y asignar" }}
+              </button>
+              <button class="secondary small" @click="createCategory(false)" :disabled="creatingCategory || !newCategory.name.trim()" title="Crea la categoría sin asignarla, y deja el formulario listo para crear una subcategoría dentro de ella">
+                Solo crear
               </button>
               <button class="secondary small" @click="form.categoryId = ''">Cancelar</button>
             </div>
@@ -526,7 +529,7 @@ function indent(depth) {
 const newCategory = ref({ name: "", parentId: "" });
 const creatingCategory = ref(false);
 
-async function createCategory() {
+async function createCategory(assign = true) {
   const name = newCategory.value.name.trim();
   if (!name) return;
   creatingCategory.value = true;
@@ -534,9 +537,15 @@ async function createCategory() {
     const { data } = await api.post("/categories", { name, parentId: newCategory.value.parentId || null });
     const { data: cats } = await api.get("/categories");
     categories.value = cats;
-    form.value.categoryId = data.id;
-    newCategory.value = { name: "", parentId: "" };
-    toast.success(`Categoría "${data.name}" creada y asignada`);
+    if (assign) {
+      form.value.categoryId = data.id;
+      newCategory.value = { name: "", parentId: "" };
+      toast.success(`Categoría "${data.name}" creada y asignada`);
+    } else {
+      // La recién creada queda preseleccionada como padre: encadenar subcategorías es inmediato.
+      newCategory.value = { name: "", parentId: data.id };
+      toast.success(`Categoría "${data.name}" creada`);
+    }
   } catch (error) {
     toast.error(error?.response?.data?.error || "No se pudo crear la categoría.");
   } finally {
