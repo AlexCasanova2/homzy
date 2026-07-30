@@ -102,23 +102,18 @@
             </div>
           </div>
 
-          <div class="side-card bg-primary text-white reveal" style="animation-delay: 0.2s">
-            <h4>¿Te ha gustado?</h4>
-            <p>Suscríbete para recibir más guías honestas como esta directamente en tu correo.</p>
-            <div class="newsletter-mini">
-              <input type="email" v-model="email" placeholder="tu@email.com" />
-              <button class="btn-white" @click="handleSubscribe">Unirme</button>
-            </div>
-          </div>
-
-          <div class="side-card glass reveal" style="animation-delay: 0.3s">
-            <h4>Navegación</h4>
-            <RouterLink class="side-link" to="/">
-              <ArrowLeftIcon :size="16" />
-              Volver a todas las reseñas
-            </RouterLink>
-          </div>
         </aside>
+      </div>
+
+      <div class="cta-banner article-cta-banner reveal">
+        <div class="cta-content">
+          <h2>¿Te ha resultado útil?</h2>
+          <p>Suscríbete y recibe nuevos análisis y guías honestas como esta en tu bandeja de entrada.</p>
+          <form class="cta-form" @submit.prevent="handleSubscribe">
+            <input type="email" v-model="email" placeholder="Escribe tu email aquí..." required />
+            <button type="submit">Suscribirme</button>
+          </form>
+        </div>
       </div>
     </div>
     </template>
@@ -136,7 +131,6 @@ import {
   ClockIcon, 
   TagIcon, 
   InfoIcon,
-  ArrowLeftIcon,
   UserIcon,
   ListIcon,
 } from "lucide-vue-next";
@@ -438,6 +432,7 @@ onUnmounted(() => {
 
 <style scoped>
 .article-state { min-height: 55vh; display: grid; place-items: center; align-content: center; gap: 16px; text-align: center; }
+.article-cta-banner { margin: 56px 0 40px; }
 .affiliate-disclosure {
   max-width: 720px;
   margin: 14px auto 0;
