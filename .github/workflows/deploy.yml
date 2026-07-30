@@ -1,0 +1,76 @@
+name: Deploy to production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deploy configuration
+        id: config
+        run: |
+          if [ -n "${{ secrets.DINAHOSTING_SSH_KEY }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Secretos de despliegue no configurados; se omite el deploy (ver DEPLOY.md)."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: 20
+
+      - name: Install and test server
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          npm --prefix server install
+          npm --prefix server test
+
+      - name: Build client
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          npm --prefix client install
+          npm --prefix client run build
+
+      - name: Set up SSH
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DINAHOSTING_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DINAHOSTING_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync files to Dinahosting
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude "node_modules" \
+            --exclude "server/node_modules" \
+            --exclude "client/node_modules" \
+            --exclude "client/src" \
+            --exclude "server/.env" \
+            --exclude "db/app.db*" \
+            --exclude "tmp" \
+            ./ "${{ secrets.DINAHOSTING_SSH_USER }}@${{ secrets.DINAHOSTING_SSH_HOST }}:${{ secrets.DINAHOSTING_DEPLOY_PATH }}/"
+
+      - name: Install production dependencies and restart Passenger
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.DINAHOSTING_SSH_USER }}@${{ secrets.DINAHOSTING_SSH_HOST }}" \
+            "cd '${{ secrets.DINAHOSTING_DEPLOY_PATH }}' \
+             && npm --prefix server install --omit=dev \
+             && mkdir -p tmp && touch tmp/restart.txt"

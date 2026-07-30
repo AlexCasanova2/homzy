@@ -1,4 +1,7 @@
-﻿import "dotenv/config";
+﻿import dotenv from "dotenv";
+import { fileURLToPath as resolveEnvPath } from "url";
+// Ruta explícita: bajo Passenger (producción) el cwd no es server/, y el .env no se encontraría.
+dotenv.config({ path: resolveEnvPath(new URL("../.env", import.meta.url)) });
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
