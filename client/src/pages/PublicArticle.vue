@@ -341,10 +341,9 @@ function isAffiliateLink(link) {
 function trackAffiliateClick(event) {
   const link = event.target.closest("a[href]");
   if (!link || !articleContent.value?.contains(link) || !isAffiliateLink(link)) return;
+  if (typeof window.gtag !== "function") return;
   const affiliateLinks = [...articleContent.value.querySelectorAll("a[href]")].filter(isAffiliateLink);
-  window.dataLayer = window.dataLayer || [];
-  window.dataLayer.push({
-    event: "affiliate_click",
+  window.gtag("event", "affiliate_click", {
     article_id: article.value.id,
     article_slug: article.value.slug,
     cta_text: link.textContent.trim(),
