@@ -54,55 +54,31 @@
     </div>
 
     <div class="container">
-      <div class="article-layout">
-        <main class="article-main">
-          <nav v-if="toc.length >= 2" class="article-toc" aria-label="Índice de contenidos">
-            <div class="article-toc__title"><ListIcon :size="16" /> En este análisis</div>
-            <ol>
-              <li v-for="item in toc" :key="item.id">
-                <a :href="`#${item.id}`" @click.prevent="scrollToHeading(item.id)">{{ item.text }}</a>
-              </li>
-            </ol>
-          </nav>
-          <div ref="articleContent" class="article-content-v3" v-html="article.html" @click="trackAffiliateClick"></div>
-        </main>
-        <aside class="article-sidebar">
-          <div class="side-card glass reveal" style="animation-delay: 0.1s">
-            <div class="side-card__header">
-              <UserIcon :size="18" />
-              <h4>Sobre el autor</h4>
-            </div>
-            <div class="author-mini">
-              <div class="avatar-large">H</div>
-              <div class="author-info">
-                <strong>Equipo Homzy</strong>
-                <p>Equipo editorial especializado en investigar y comparar productos para el hogar.</p>
-              </div>
-            </div>
-          </div>
+      <main class="article-main">
+        <nav v-if="toc.length >= 2" class="article-toc" aria-label="Índice de contenidos">
+          <div class="article-toc__title"><ListIcon :size="16" /> En este análisis</div>
+          <ol>
+            <li v-for="item in toc" :key="item.id">
+              <a :href="`#${item.id}`" @click.prevent="scrollToHeading(item.id)">{{ item.text }}</a>
+            </li>
+          </ol>
+        </nav>
+        <div ref="articleContent" class="article-content-v3" v-html="article.html" @click="trackAffiliateClick"></div>
+      </main>
 
-          <div class="side-card glass reveal" style="animation-delay: 0.2s">
-            <div class="side-card__header">
-              <InfoIcon :size="18" />
-              <h4>Ficha del Análisis</h4>
-            </div>
-            <div class="side-info-list">
-              <div class="side-info-item">
-                <span>Actualizado</span>
-                <strong>{{ formatDate(article?.updated_at) }}</strong>
-              </div>
-              <div class="side-info-item">
-                <span>Categoría</span>
-                <strong>{{ categoryName(article?.category_id) }}</strong>
-              </div>
-              <div class="side-info-item">
-                <span>Método</span>
-                <strong>Investigación editorial</strong>
-              </div>
-            </div>
-          </div>
-
-        </aside>
+      <div class="article-fact-strip reveal">
+        <div class="fact">
+          <span>Actualizado</span>
+          <strong>{{ formatDate(article?.updated_at) }}</strong>
+        </div>
+        <div class="fact">
+          <span>Categoría</span>
+          <strong>{{ categoryName(article?.category_id) || "Análisis" }}</strong>
+        </div>
+        <div class="fact">
+          <span>Método</span>
+          <strong>Investigación editorial</strong>
+        </div>
       </div>
 
       <div class="cta-banner article-cta-banner reveal">
@@ -130,8 +106,6 @@ import {
   CalendarIcon, 
   ClockIcon, 
   TagIcon, 
-  InfoIcon,
-  UserIcon,
   ListIcon,
 } from "lucide-vue-next";
 
@@ -432,7 +406,48 @@ onUnmounted(() => {
 
 <style scoped>
 .article-state { min-height: 55vh; display: grid; place-items: center; align-content: center; gap: 16px; text-align: center; }
-.article-cta-banner { margin: 56px 0 40px; }
+.article-cta-banner { margin: 48px 0 40px; }
+
+/* Una sola columna: lectura centrada y más ancha */
+.article-main { max-width: 800px; margin: 0 auto; }
+.article-main :deep(.article-content-v3),
+.article-main :deep(.article-toc) { max-width: none; }
+
+.article-fact-strip {
+  max-width: 800px;
+  margin: 48px auto 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 20px 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.article-fact-strip .fact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.article-fact-strip .fact span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.article-fact-strip .fact strong {
+  font-size: 15px;
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .article-fact-strip { grid-template-columns: 1fr; gap: 14px; }
+}
 .affiliate-disclosure {
   max-width: 720px;
   margin: 14px auto 0;
