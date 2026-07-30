@@ -24,7 +24,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="article in articles" :key="article.id">
+            <tr v-for="article in pagedArticles" :key="article.id">
               <td class="font-bold">{{ article.title }}</td>
               <td>
                 <span class="status-badge" :class="article.status">
@@ -59,6 +59,14 @@
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        v-model:page="page"
+        v-model:pageSize="pageSize"
+        :total="total"
+        :total-pages="totalPages"
+        label="artículos"
+      />
     </section>
 
     <!-- Form View (Create or Edit) -->
@@ -218,6 +226,8 @@ import { onMounted, onUnmounted, ref, computed } from "vue";
 import { useRoute } from "vue-router";
 import api from "../api.js";
 import RichTextEditor from "./RichTextEditor.vue";
+import TablePagination from "./TablePagination.vue";
+import { usePagination } from "../composables/usePagination.js";
 import { useToastStore } from "../stores/toast.js";
 import { 
   PenToolIcon, 
@@ -244,6 +254,10 @@ const publishTimers = new Map();
 const canonicalTouched = ref(false);
 const toast = useToastStore();
 const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "zona local";
+
+const { page, pageSize, total, totalPages, paginated: pagedArticles } = usePagination(articles, {
+  storageKey: "homzy.admin.articles.pageSize",
+});
 
 const canonicalError = computed(() => {
   if (!form.value.canonicalUrl) return "";

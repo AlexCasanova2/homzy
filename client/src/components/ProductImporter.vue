@@ -88,7 +88,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="product in products" :key="product.id">
+            <tr v-for="product in pagedProducts" :key="product.id">
               <td><code class="asin-code">{{ product.asin }}</code></td>
               <td class="product-title-cell">{{ product.title }}</td>
               <td class="font-bold">{{ product.price || '-' }}</td>
@@ -151,6 +151,15 @@
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        v-if="!isLoading && !loadError"
+        v-model:page="page"
+        v-model:pageSize="pageSize"
+        :total="total"
+        :total-pages="totalPages"
+        label="productos"
+      />
     </section>
 
     <!-- Overlay Loading -->
@@ -410,6 +419,8 @@ import {
   Trash2Icon,
   ExternalLinkIcon,
 } from "lucide-vue-next";
+import TablePagination from "./TablePagination.vue";
+import { usePagination } from "../composables/usePagination.js";
 import { useToastStore } from "../stores/toast.js";
 
 const products = ref([]);
@@ -427,6 +438,10 @@ const elapsed = ref(0);
 const currentStepIndex = ref(0);
 const toast = useToastStore();
 let timerId = null;
+
+const { page, pageSize, total, totalPages, paginated: pagedProducts } = usePagination(products, {
+  storageKey: "homzy.admin.products.pageSize",
+});
 
 const statusSteps = [
   "Analizando especificaciones del producto...",
