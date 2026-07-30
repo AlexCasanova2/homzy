@@ -5,17 +5,32 @@
   <section class="hero-main reveal">
     <div class="hero-bg-image" style="background-image: url('/hero.png')"></div>
     <div class="container hero-content">
-      <span class="hero-eyebrow">Análisis honestos, sin patrocinios</span>
       <h2 class="hero-title">
-        Diseño y <span class="text-gradient">Tecnología</span> <br/> para tu Hogar
+        Lo que necesitas saber <br/> <span class="text-gradient">antes de comprar</span>
       </h2>
-      <p class="hero-subtitle">Descubre análisis claros de productos que pueden mejorar tu espacio y tu día a día.</p>
-      
+      <p class="hero-subtitle">
+        Analizamos productos de Amazon a fondo: especificaciones reales, pros, contras
+        y para quién sí y para quién no.
+      </p>
+
       <form class="hero-search" role="search" @submit.prevent="submitSearch">
         <label class="sr-only" for="home-search">Buscar artículos</label>
-        <input id="home-search" v-model="searchQuery" type="search" placeholder="¿Qué estás buscando hoy?" />
+        <input id="home-search" v-model="searchQuery" type="search" placeholder="¿Qué producto estás mirando?" />
         <button class="search-btn" type="submit" aria-label="Buscar"><SearchIcon :size="20" /></button>
       </form>
+
+      <!-- Accesos directos a las categorías que ya tienen análisis publicados. -->
+      <nav v-if="heroCategories.length" class="hero-chips" aria-label="Categorías destacadas">
+        <RouterLink v-for="category in heroCategories" :key="category.id" class="hero-chip" :to="`/categoria/${category.slug}`">
+          {{ category.name }}
+          <span class="hero-chip__count">{{ category.count }}</span>
+        </RouterLink>
+        <RouterLink class="hero-chip hero-chip--all" to="/categorias">
+          Ver todas
+          <ArrowRightIcon :size="13" />
+        </RouterLink>
+      </nav>
+
     </div>
   </section>
 
@@ -208,7 +223,8 @@ import {
   PackageIcon,
   ShieldCheckIcon,
   AwardIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  ArrowRightIcon
 } from "lucide-vue-next";
 
 const articles = ref([]);
@@ -230,6 +246,17 @@ const featuredArticle = computed(() => {
 
 // En la portada solo se muestran las categorías de primer nivel.
 const rootCategories = computed(() => categories.value.filter((category) => !category.parent_id));
+
+// Atajos del hero: solo categorías con análisis publicados, las que más tienen primero.
+// Enviar a alguien a una categoría vacía desde la portada es peor que no ofrecer el atajo.
+const heroCategories = computed(() =>
+  rootCategories.value
+    .map((category) => ({ ...category, count: categoryCount(category.id) }))
+    .filter((category) => category.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4)
+);
+
 
 const articlesToShow = computed(() => {
   if (!featuredArticle.value) return articles.value;

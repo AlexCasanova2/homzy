@@ -14,6 +14,10 @@
           <span class="nav-icon"><LayoutDashboardIcon :size="20" /></span>
           Dashboard
         </RouterLink>
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/analytics') }" to="/admin/analytics">
+          <span class="nav-icon"><BarChart3Icon :size="20" /></span>
+          Analitica
+        </RouterLink>
         <RouterLink class="nav-item" :class="{ active: isActive('/admin/articles') }" to="/admin/articles">
           <span class="nav-icon"><FileTextIcon :size="20" /></span>
           Articulos
@@ -37,10 +41,10 @@
       </nav>
 
       <div class="admin-footer">
-        <RouterLink class="nav-item secondary" to="/">
+        <a class="nav-item secondary" href="/" target="_blank" rel="noopener">
           <span class="nav-icon"><ExternalLinkIcon :size="18" /></span>
           Ver Web Pública
-        </RouterLink>
+        </a>
         <button class="nav-item secondary logout-btn" @click="handleLogout">
           <span class="nav-icon"><LogOutIcon :size="18" /></span>
           Cerrar Sesión
@@ -66,9 +70,10 @@
 import { computed } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth.js";
-import { 
-  LayoutDashboardIcon, 
-  FileTextIcon, 
+import {
+  LayoutDashboardIcon,
+  BarChart3Icon,
+  FileTextIcon,
   PackageIcon, 
   FolderIcon, 
   UsersIcon, 
@@ -98,6 +103,7 @@ const currentPage = computed(() => {
 const currentPageTitle = computed(() => {
   const map = {
     '/admin': 'Resumen General',
+    '/admin/analytics': 'Analítica',
     '/admin/articles': 'Gestión de Artículos',
     '/admin/products': 'Catálogo de Productos',
     '/admin/categories': 'Taxonomías',

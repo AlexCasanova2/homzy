@@ -214,7 +214,44 @@ app.get("/api/metrics/summary", authenticate, ah(async (req, res) => {
     [since]
   );
 
-  res.json({ days, totals, byDay, byArticle });
+  // Rutas más vistas, incluidas las que no son artículos (home, categorías, búsqueda).
+  const byPath = await all(
+    `SELECT path,
+            count(*) FILTER (WHERE type = 'view')::int AS views,
+            count(*) FILTER (WHERE type = 'affiliate_click')::int AS clicks
+     FROM page_events
+     WHERE created_at >= $1 AND path IS NOT NULL
+     GROUP BY path
+     ORDER BY views DESC
+     LIMIT 25`,
+    [since]
+  );
+
+  // Origen del tráfico por dominio del referrer; sin referrer = acceso directo.
+  const byReferrer = await all(
+    `SELECT coalesce(nullif(substring(referrer from '^https?://([^/]+)'), ''), 'Directo') AS source,
+            count(*)::int AS views
+     FROM page_events
+     WHERE created_at >= $1 AND type = 'view'
+     GROUP BY source
+     ORDER BY views DESC
+     LIMIT 15`,
+    [since]
+  );
+
+  // Qué CTA genera los clics de afiliado (botón final, enlace en texto, etc.).
+  const byContext = await all(
+    `SELECT coalesce(nullif(context, ''), 'sin contexto') AS context,
+            count(*)::int AS clicks
+     FROM page_events
+     WHERE created_at >= $1 AND type = 'affiliate_click'
+     GROUP BY context
+     ORDER BY clicks DESC
+     LIMIT 20`,
+    [since]
+  );
+
+  res.json({ days, totals, byDay, byArticle, byPath, byReferrer, byContext });
 }));
 
 // -- NEWSLETTER --
@@ -482,6 +519,63 @@ app.get("/api/articles", optionalAuthenticate, ah(async (req, res) => {
     ...row,
     html: sanitizeArticleHtml(row.html),
   }));
+  res.json(rows);
+}));
+
+// Artículos relacionados: primero los de la misma subcategoría y, si no hay suficientes,
+// se sube por la cadena de categorías superiores. Devuelve solo los campos de la tarjeta
+// (sin el HTML del artículo) para que la petición sea barata.
+app.get("/api/articles/:idOrSlug/related", ah(async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 3, 1), 12);
+
+  const article = await one(
+    "SELECT id, category_id FROM articles WHERE (id = $1 OR slug = $1) AND status = 'published'",
+    [req.params.idOrSlug]
+  );
+  if (!article) return res.status(404).json({ error: "not found" });
+
+  const CARD_FIELDS = "a.id, a.slug, a.title, a.image_url, a.meta_description, a.category_id, a.published_at, a.created_at";
+
+  // depth 1 = la propia subcategoría del artículo; cada salto al padre suma 1, así que
+  // ordenar por la profundidad mínima da primero la coincidencia más específica.
+  const byCategory = article.category_id
+    ? await all(
+        `WITH RECURSIVE chain AS (
+           SELECT id, parent_id, 1 AS depth FROM categories WHERE id = $2
+           UNION ALL
+           SELECT c.id, c.parent_id, ch.depth + 1
+           FROM categories c JOIN chain ch ON c.id = ch.parent_id
+           WHERE ch.depth < 10
+         )
+         SELECT ${CARD_FIELDS}, min(ch.depth)::int AS match_depth
+         FROM articles a
+         JOIN chain ch ON a.category_id = ch.id OR EXISTS (
+           SELECT 1 FROM article_categories ac WHERE ac.article_id = a.id AND ac.category_id = ch.id
+         )
+         WHERE a.status = 'published' AND a.id <> $1
+         GROUP BY a.id
+         ORDER BY match_depth ASC, coalesce(a.published_at, a.created_at) DESC
+         LIMIT $3`,
+        [article.id, article.category_id, limit]
+      )
+    : [];
+
+  // Sin categoría o con muy pocos hermanos: se completa con los más recientes para no
+  // dejar la sección coja al final del artículo.
+  let rows = byCategory;
+  if (rows.length < limit) {
+    const excluded = [article.id, ...rows.map((row) => row.id)];
+    const filler = await all(
+      `SELECT ${CARD_FIELDS}, NULL::int AS match_depth
+       FROM articles a
+       WHERE a.status = 'published' AND a.id <> ALL($1)
+       ORDER BY coalesce(a.published_at, a.created_at) DESC
+       LIMIT $2`,
+      [excluded, limit - rows.length]
+    );
+    rows = [...rows, ...filler];
+  }
+
   res.json(rows);
 }));
 

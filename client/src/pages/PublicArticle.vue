@@ -72,6 +72,34 @@
         <div ref="articleContent" class="article-content-v3" v-html="article.html" @click="trackAffiliateClick"></div>
       </main>
 
+      <section v-if="relatedArticles.length" class="related-section reveal" aria-labelledby="related-heading">
+        <div class="section-head">
+          <span class="eyebrow">Sigue leyendo</span>
+          <h3 id="related-heading">Análisis relacionados</h3>
+          <p>Otros análisis que pueden interesarte antes de decidir</p>
+        </div>
+        <div class="grid grid-3">
+          <RouterLink
+            v-for="related in relatedArticles"
+            :key="related.id"
+            class="review-card"
+            :to="`/analisis/${related.slug}`"
+          >
+            <div class="review-thumb">
+              <img v-if="related.image_url" :src="related.image_url" class="thumb-image" :alt="related.title" loading="lazy" />
+              <span class="review-pill">{{ categoryName(related.category_id) || "Análisis" }}</span>
+            </div>
+            <div class="review-body">
+              <div class="review-meta">
+                <span class="date">{{ formatDate(related.published_at || related.created_at) }}</span>
+              </div>
+              <h4>{{ related.title }}</h4>
+              <p class="meta-desc">{{ related.meta_description || "Consulta nuestro análisis editorial de este producto." }}</p>
+            </div>
+          </RouterLink>
+        </div>
+      </section>
+
       <div class="cta-banner article-cta-banner reveal">
         <div class="cta-content">
           <h2>¿Te ha resultado útil?</h2>
@@ -110,6 +138,7 @@ const notFound = ref(false);
 const error = ref("");
 const readingProgress = ref(0);
 const toc = ref([]);
+const relatedArticles = ref([]);
 const email = ref("");
 const toast = useToastStore();
 let requestNumber = 0;
@@ -168,11 +197,23 @@ function formatDate(value) {
   });
 }
 
+// Va aparte de loadArticle: si falla, el artículo se sigue leyendo sin la sección.
+// El guard de requestNumber evita que una navegación rápida pinte los relacionados del anterior.
+async function loadRelated(articleId, requestId) {
+  try {
+    const { data } = await api.get(`/articles/${articleId}/related`, { params: { limit: 3 } });
+    if (requestId === requestNumber) relatedArticles.value = data;
+  } catch {
+    if (requestId === requestNumber) relatedArticles.value = [];
+  }
+}
+
 async function loadArticle(slug) {
   const currentRequest = ++requestNumber;
   clearMeta();
   article.value = null;
   toc.value = [];
+  relatedArticles.value = [];
   loading.value = true;
   notFound.value = false;
   error.value = "";
@@ -190,6 +231,7 @@ async function loadArticle(slug) {
     enhanceContent();
     injectStructuredData();
     updateProgress();
+    loadRelated(data.id, currentRequest);
   } catch (requestError) {
     if (currentRequest !== requestNumber) return;
     if (requestError.response?.status === 404) notFound.value = true;
@@ -415,6 +457,15 @@ onUnmounted(() => {
 <style scoped>
 .article-state { min-height: 55vh; display: grid; place-items: center; align-content: center; gap: 16px; text-align: center; }
 .article-cta-banner { margin: 48px 0 40px; }
+
+.related-section {
+  margin-top: 64px;
+  padding-top: 48px;
+  border-top: 1px solid var(--border);
+}
+
+.related-section :deep(.section-head) { margin-bottom: 28px; }
+.related-section :deep(.review-card h4) { font-size: 17px; }
 
 /* Una sola columna al ancho completo del contenedor, como el resto de bloques */
 .article-main { width: 100%; }

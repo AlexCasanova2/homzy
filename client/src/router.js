@@ -6,6 +6,7 @@ import PublicCategory from "./pages/PublicCategory.vue";
 import PublicSearch from "./pages/PublicSearch.vue";
 import AdminDashboard from "./pages/AdminDashboard.vue";
 import AdminDashboardHome from "./pages/admin/AdminDashboardHome.vue";
+import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage.vue";
 import AdminProductsPage from "./pages/admin/AdminProductsPage.vue";
 import AdminArticlesPage from "./pages/admin/AdminArticlesPage.vue";
 import AdminCategoriesPage from "./pages/admin/AdminCategoriesPage.vue";
@@ -33,6 +34,7 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: "", component: AdminDashboardHome },
+      { path: "analytics", component: AdminAnalyticsPage },
       { path: "products", component: AdminProductsPage },
       { path: "articles", component: AdminArticlesPage },
       { path: "categories", component: AdminCategoriesPage },
