@@ -91,6 +91,7 @@
 import { computed, nextTick, onMounted, ref, onUnmounted, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import api from "../api.js";
+import { trackEvent } from "../track.js";
 import { useToastStore } from "../stores/toast.js";
 import { 
   ChevronRightIcon, 
@@ -181,6 +182,7 @@ async function loadArticle(slug) {
     if (currentRequest !== requestNumber) return;
     article.value = data;
     updateMeta(data);
+    trackEvent({ type: "view", path: route.fullPath, articleId: data.id, referrer: document.referrer || null });
     // El contenido solo se monta cuando loading pasa a false; hay que hacerlo antes del nextTick.
     loading.value = false;
     await nextTick();
@@ -341,8 +343,10 @@ function isAffiliateLink(link) {
 function trackAffiliateClick(event) {
   const link = event.target.closest("a[href]");
   if (!link || !articleContent.value?.contains(link) || !isAffiliateLink(link)) return;
-  if (typeof window.gtag !== "function") return;
   const affiliateLinks = [...articleContent.value.querySelectorAll("a[href]")].filter(isAffiliateLink);
+  const clickContext = link.closest("table") ? "comparison_table" : link.classList.contains("btn-buy") ? "cta" : "article_body";
+  trackEvent({ type: "affiliate_click", path: route.fullPath, articleId: article.value.id, context: clickContext });
+  if (typeof window.gtag !== "function") return;
   window.gtag("event", "affiliate_click", {
     article_id: article.value.id,
     article_slug: article.value.slug,

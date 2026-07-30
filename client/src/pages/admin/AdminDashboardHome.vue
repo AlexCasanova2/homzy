@@ -56,6 +56,73 @@
       </div>
     </div>
 
+    <!-- Métricas de audiencia -->
+    <section class="panel card metrics-panel reveal delay-4">
+      <div class="panel-header">
+        <div class="header-with-icon">
+          <BarChart3Icon :size="18" class="text-blue" />
+          <h4>Audiencia y clics de afiliado</h4>
+        </div>
+        <div class="range-picker">
+          <button
+            v-for="opt in [7, 30, 90]"
+            :key="opt"
+            class="range-btn"
+            :class="{ active: metricsDays === opt }"
+            @click="loadMetrics(opt)"
+          >{{ opt }} días</button>
+        </div>
+      </div>
+
+      <div v-if="metrics">
+        <div class="metrics-totals">
+          <div class="m-stat">
+            <span>Visitas</span>
+            <strong>{{ metrics.totals.views }}</strong>
+          </div>
+          <div class="m-stat">
+            <span>Clics de afiliado</span>
+            <strong>{{ metrics.totals.clicks }}</strong>
+          </div>
+          <div class="m-stat">
+            <span>CTR</span>
+            <strong>{{ ctr(metrics.totals.clicks, metrics.totals.views) }}</strong>
+          </div>
+        </div>
+
+        <div v-if="metrics.byDay.length" class="metrics-chart">
+          <div
+            v-for="d in metrics.byDay"
+            :key="d.day"
+            class="chart-col"
+            :title="`${d.day}: ${d.views} visitas, ${d.clicks} clics`"
+          >
+            <div class="bar bar-views" :style="{ height: barHeight(d.views) }"></div>
+            <div class="bar bar-clicks" :style="{ height: barHeight(d.clicks) }"></div>
+          </div>
+        </div>
+
+        <table v-if="metrics.byArticle.length" class="table metrics-table">
+          <thead>
+            <tr><th>Artículo</th><th>Visitas</th><th>Clics</th><th>CTR</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in metrics.byArticle" :key="row.article_id">
+              <td class="metrics-article-title">
+                <a v-if="row.slug" :href="`/analisis/${row.slug}`" target="_blank" rel="noopener">{{ row.title }}</a>
+                <span v-else>(artículo eliminado)</span>
+              </td>
+              <td>{{ row.views }}</td>
+              <td>{{ row.clicks }}</td>
+              <td>{{ ctr(row.clicks, row.views) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="text-muted metrics-empty">Aún no hay actividad registrada en artículos. Las métricas cuentan desde hoy mismo.</p>
+      </div>
+      <p v-else class="text-muted metrics-empty">Cargando métricas...</p>
+    </section>
+
     <!-- Main Content Panels -->
     <div class="admin-panels">
       <!-- Recent Activity Section -->
@@ -129,7 +196,8 @@ import {
   TagIcon,
   RefreshCwIcon,
   ZapIcon,
-  PlusIcon
+  PlusIcon,
+  BarChart3Icon
 } from "lucide-vue-next";
 
 const loading = ref(false);
@@ -200,12 +268,150 @@ function formatDate(val) {
   return d.toLocaleDateString("es-ES", { day: 'numeric', month: 'short' });
 }
 
-onMounted(loadStats);
+const metrics = ref(null);
+const metricsDays = ref(30);
+
+async function loadMetrics(days = 30) {
+  metricsDays.value = days;
+  try {
+    const { data } = await api.get(`/metrics/summary?days=${days}`);
+    metrics.value = data;
+  } catch (err) {
+    console.error("Error loading metrics", err);
+  }
+}
+
+function ctr(clicks, views) {
+  if (!views) return "—";
+  return `${((clicks / views) * 100).toFixed(1)}%`;
+}
+
+function barHeight(value) {
+  const max = Math.max(1, ...(metrics.value?.byDay || []).map((d) => Math.max(d.views, d.clicks)));
+  return `${Math.max(3, Math.round((value / max) * 100))}%`;
+}
+
+onMounted(() => {
+  loadStats();
+  loadMetrics(30);
+});
 </script>
 
 <style scoped>
 .dashboard-home {
   width: 100%;
+}
+
+/* --- Métricas de audiencia --- */
+.metrics-panel {
+  margin-bottom: 32px;
+}
+
+.range-picker {
+  display: flex;
+  gap: 6px;
+}
+
+.range-btn {
+  padding: 5px 12px !important;
+  font-size: 12px !important;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.range-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.metrics-totals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.m-stat {
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+}
+
+.m-stat span {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.m-stat strong {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.metrics-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 90px;
+  margin: 8px 0 24px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+}
+
+.chart-col {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+}
+
+.bar {
+  width: 45%;
+  max-width: 14px;
+  border-radius: 3px 3px 0 0;
+}
+
+.bar-views {
+  background: rgba(176, 85, 47, 0.35);
+}
+
+.bar-clicks {
+  background: var(--primary);
+}
+
+.metrics-table .metrics-article-title {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics-table a:hover {
+  color: var(--primary);
+}
+
+.metrics-empty {
+  padding: 16px 0;
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .metrics-totals {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dashboard-header {

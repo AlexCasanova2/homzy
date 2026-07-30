@@ -15,6 +15,7 @@ import LegalPage from "./pages/LegalPage.vue";
 import NotFoundPage from "./pages/NotFoundPage.vue";
 import { useAuthStore } from "./stores/auth.js";
 import LoginPage from "./pages/LoginPage.vue";
+import { trackEvent } from "./track.js";
 
 const routes = [
   { path: "/login", component: LoginPage },
@@ -52,6 +53,12 @@ const router = createRouter({
     if (to.hash) return { el: to.hash, behavior: "smooth" };
     return { top: 0 };
   },
+});
+
+router.afterEach((to) => {
+  // Las páginas de artículo registran su propia vista (con el id del artículo).
+  if (to.path.startsWith("/admin") || to.path.startsWith("/login") || to.path.startsWith("/analisis/")) return;
+  trackEvent({ type: "view", path: to.path, referrer: document.referrer || null });
 });
 
 router.beforeEach(async (to) => {

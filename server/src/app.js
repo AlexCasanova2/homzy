@@ -39,6 +39,7 @@ const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHea
 const importLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
 const generationLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
 const newsletterLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
+const metricsLimiter = rateLimit({ windowMs: 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false });
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -133,6 +134,70 @@ app.post("/api/auth/login", authLimiter, ah(async (req, res) => {
 app.get("/api/auth/me", authenticate, (req, res) => {
   res.json({ user: req.user });
 });
+
+// -- MÉTRICAS PROPIAS --
+// Registro anónimo: sin IP, sin user-agent, sin cookies. Solo qué se vio o se clicó.
+app.post("/api/metrics/track", metricsLimiter, ah(async (req, res) => {
+  const parsed = z.object({
+    type: z.enum(["view", "affiliate_click"]),
+    path: z.string().max(300).optional(),
+    articleId: z.string().max(64).nullable().optional(),
+    context: z.string().max(40).nullable().optional(),
+    referrer: z.string().max(300).nullable().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid event" });
+
+  await query(
+    "INSERT INTO page_events (id, type, path, article_id, context, referrer, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    [
+      nanoid(),
+      parsed.data.type,
+      parsed.data.path || null,
+      parsed.data.articleId || null,
+      parsed.data.context || null,
+      parsed.data.referrer || null,
+      nowIso(),
+    ]
+  );
+  res.status(204).end();
+}));
+
+app.get("/api/metrics/summary", authenticate, ah(async (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const totals = await one(
+    `SELECT
+       count(*) FILTER (WHERE type = 'view')::int AS views,
+       count(*) FILTER (WHERE type = 'affiliate_click')::int AS clicks
+     FROM page_events WHERE created_at >= $1`,
+    [since]
+  );
+
+  const byDay = await all(
+    `SELECT substring(created_at, 1, 10) AS day,
+            count(*) FILTER (WHERE type = 'view')::int AS views,
+            count(*) FILTER (WHERE type = 'affiliate_click')::int AS clicks
+     FROM page_events WHERE created_at >= $1
+     GROUP BY day ORDER BY day`,
+    [since]
+  );
+
+  const byArticle = await all(
+    `SELECT e.article_id, a.title, a.slug,
+            count(*) FILTER (WHERE e.type = 'view')::int AS views,
+            count(*) FILTER (WHERE e.type = 'affiliate_click')::int AS clicks
+     FROM page_events e
+     LEFT JOIN articles a ON a.id = e.article_id
+     WHERE e.created_at >= $1 AND e.article_id IS NOT NULL
+     GROUP BY e.article_id, a.title, a.slug
+     ORDER BY 4 DESC
+     LIMIT 50`,
+    [since]
+  );
+
+  res.json({ days, totals, byDay, byArticle });
+}));
 
 // -- NEWSLETTER --
 app.post("/api/newsletter/subscribe", newsletterLimiter, ah(async (req, res) => {

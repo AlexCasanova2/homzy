@@ -90,5 +90,18 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
   created_at TEXT NOT NULL
 );
 
+-- Métricas propias, sin datos personales: solo tipo de evento, ruta y artículo.
+CREATE TABLE IF NOT EXISTS page_events (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  path TEXT,
+  article_id TEXT,
+  context TEXT,
+  referrer TEXT,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_status_scheduled_at ON articles(status, scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_page_events_type_created ON page_events(type, created_at);
+CREATE INDEX IF NOT EXISTS idx_page_events_article ON page_events(article_id, type);
