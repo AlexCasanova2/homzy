@@ -1547,7 +1547,6 @@ label {
   padding: 24px 28px;
   background: linear-gradient(135deg, #faf1e9, #fdf7ef);
   border: 1px solid rgba(176, 85, 47, 0.18);
-  border-left: 4px solid var(--primary);
   border-radius: var(--radius-lg);
 }
 
