@@ -75,6 +75,24 @@ app.get("/api/health", ah(async (_req, res) => {
   });
 }));
 
+// Un artículo en "Sofás" pertenece también a "Salón", "Muebles" y "Hogar y cocina":
+// se expanden los ancestros para que aparezca navegando por cualquier nivel del árbol.
+async function withAncestorCategories(categoryIds) {
+  const ids = new Set((categoryIds || []).filter(Boolean));
+  if (!ids.size) return [];
+  const parentById = new Map((await all("SELECT id, parent_id FROM categories")).map((row) => [row.id, row.parent_id]));
+  for (const id of [...ids]) {
+    const visited = new Set([id]);
+    let parent = parentById.get(id);
+    while (parent && !visited.has(parent)) {
+      ids.add(parent);
+      visited.add(parent);
+      parent = parentById.get(parent);
+    }
+  }
+  return [...ids];
+}
+
 // Slugs are UNIQUE per table; append -2, -3... instead of failing the insert.
 async function uniqueSlug(table, base, excludeId = null) {
   const root = base || "item";
@@ -521,6 +539,7 @@ app.post("/api/articles", authenticate, ah(async (req, res) => {
   const updatedAt = createdAt;
   const slug = await uniqueSlug("articles", parsed.data.slug || slugify(parsed.data.title));
   const mainCategoryId = parsed.data.categoryIds?.[0] || null;
+  const articleCategoryIds = await withAncestorCategories(parsed.data.categoryIds);
   const cleanHtml = sanitizeArticleHtml(parsed.data.html);
   if (cleanHtml.trim().length < 10) return res.status(400).json({ error: "Article HTML is empty after sanitization" });
   const productAsin = parsed.data.productId
@@ -547,7 +566,7 @@ app.post("/api/articles", authenticate, ah(async (req, res) => {
     for (const tagId of parsed.data.tags || []) {
       await client.query("INSERT INTO article_tags (article_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [id, tagId]);
     }
-    for (const catId of parsed.data.categoryIds || []) {
+    for (const catId of articleCategoryIds) {
       await client.query("INSERT INTO article_categories (article_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [id, catId]);
     }
   });
@@ -622,7 +641,7 @@ app.put("/api/articles/:id", authenticate, ah(async (req, res) => {
     }
     if (parsed.data.categoryIds) {
       await client.query("DELETE FROM article_categories WHERE article_id = $1", [req.params.id]);
-      for (const catId of parsed.data.categoryIds) {
+      for (const catId of await withAncestorCategories(parsed.data.categoryIds)) {
         await client.query("INSERT INTO article_categories (article_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [req.params.id, catId]);
       }
     }
@@ -756,6 +775,9 @@ app.post("/api/generate-article", generationLimiter, authenticate, ah(async (req
     const finalHtml = finalResult.html;
     const finalSlug = await uniqueSlug("articles", finalResult.slug || slugify(title));
 
+    // category_id conserva la hoja (para migas de pan); article_categories guarda toda la rama.
+    const articleCategoryIds = await withAncestorCategories([categoryId]);
+
     try {
       await tx(async (client) => {
         await client.query(
@@ -768,8 +790,8 @@ app.post("/api/generate-article", generationLimiter, authenticate, ah(async (req
             finalResult.seoTitle || null, finalResult.seoKeywords || null,
           ]
         );
-        if (categoryId) {
-          await client.query("INSERT INTO article_categories (article_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [id, categoryId]);
+        for (const catId of articleCategoryIds) {
+          await client.query("INSERT INTO article_categories (article_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [id, catId]);
         }
       });
     } catch (dbErr) {
