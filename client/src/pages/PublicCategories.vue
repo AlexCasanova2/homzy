@@ -7,24 +7,6 @@
       </div>
 
       <div class="container">
-        <div class="categories-grid">
-          <RouterLink 
-            v-for="cat in categories" 
-            :key="cat.id" 
-            :to="`/categoria/${cat.slug}`"
-            class="category-card card glass card--hover"
-          >
-            <div class="category-icon-wrapper">
-              <FolderIcon :size="32" />
-            </div>
-            <div class="category-info">
-              <h3>{{ cat.name }}</h3>
-              <p v-if="cat.description" class="cat-desc">{{ cat.description }}</p>
-              <span class="cat-count">Ver todos los análisis</span>
-            </div>
-          </RouterLink>
-        </div>
-
         <div v-if="loading" class="text-center py-64">
            <div class="spinner-container">
             <div class="spinner"></div>
@@ -41,13 +23,38 @@
           <p class="text-muted">Todavía no hay categorías publicadas. Vuelve pronto para descubrir nuevos análisis.</p>
           <RouterLink to="/" class="retry-btn">Volver al inicio</RouterLink>
         </div>
+
+        <div v-else class="category-groups">
+          <div v-for="root in rootCategories" :key="root.id" class="category-group card glass">
+            <RouterLink :to="`/categoria/${root.slug}`" class="group-head">
+              <div class="category-icon-wrapper">
+                <FolderIcon :size="26" />
+              </div>
+              <div class="group-info">
+                <h3>{{ root.name }}</h3>
+                <p v-if="root.description" class="cat-desc">{{ root.description }}</p>
+              </div>
+            </RouterLink>
+
+            <div v-if="descendantsOf(root.id).length" class="group-chips">
+              <RouterLink
+                v-for="sub in descendantsOf(root.id)"
+                :key="sub.id"
+                :to="`/categoria/${sub.slug}`"
+                class="chip"
+              >
+                {{ sub.name }}
+              </RouterLink>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { FolderIcon } from "lucide-vue-next";
 import api from "../api.js";
@@ -55,6 +62,28 @@ import api from "../api.js";
 const categories = ref([]);
 const loading = ref(true);
 const loadError = ref(false);
+
+const rootCategories = computed(() => categories.value.filter((cat) => !cat.parent_id));
+
+// Descendientes en orden jerárquico (recorrido en profundidad), para que
+// "Muebles, Salón, Sofás" aparezcan en su orden lógico y no alfabético plano.
+function descendantsOf(rootId) {
+  const byParent = new Map();
+  for (const cat of categories.value) {
+    if (!cat.parent_id) continue;
+    if (!byParent.has(cat.parent_id)) byParent.set(cat.parent_id, []);
+    byParent.get(cat.parent_id).push(cat);
+  }
+  const result = [];
+  const walk = (id) => {
+    for (const child of (byParent.get(id) || []).sort((a, b) => a.name.localeCompare(b.name))) {
+      result.push(child);
+      walk(child.id);
+    }
+  };
+  walk(rootId);
+  return result;
+}
 
 async function loadCategories() {
   loading.value = true;
@@ -82,9 +111,9 @@ onMounted(() => {
 }
 
 .page-title {
-  font-family: "Montserrat", sans-serif;
+  font-family: "Fraunces", Georgia, serif;
   font-size: 48px;
-  font-weight: 800;
+  font-weight: 700;
   margin-bottom: 16px;
 }
 
@@ -93,61 +122,81 @@ onMounted(() => {
   color: var(--secondary);
 }
 
-.categories-grid {
+.category-groups {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 24px;
+  align-items: start;
 }
 
-.category-card {
+@media (max-width: 480px) {
+  .category-groups {
+    grid-template-columns: 1fr;
+  }
+}
+
+.category-group {
+  padding: 28px;
+}
+
+.group-head {
   display: flex;
-  flex-direction: column;
-  padding: 32px;
-  text-align: center;
   align-items: center;
-  transition: all 0.3s ease;
-  height: 100%;
+  gap: 16px;
+}
+
+.group-head:hover h3 {
+  color: var(--primary);
 }
 
 .category-icon-wrapper {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
   background: var(--primary-light);
   color: var(--primary);
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 24px;
-  transition: all 0.3s ease;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
 }
 
-.category-card:hover .category-icon-wrapper {
-  transform: scale(1.1) rotate(5deg);
-  background: var(--primary);
-  color: white;
-}
-
-.category-info h3 {
-  font-family: "Montserrat", sans-serif;
+.group-info h3 {
   font-size: 22px;
-  margin-bottom: 12px;
+  margin: 0 0 4px;
+  transition: color 0.2s ease;
 }
 
 .cat-desc {
   font-size: 14px;
   color: var(--secondary);
   line-height: 1.5;
-  margin-bottom: 20px;
+  margin: 0;
 }
 
-.cat-count {
+.group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.chip {
+  padding: 7px 16px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--background);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.chip:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
   color: var(--primary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: auto;
 }
 
 .mb-48 { margin-bottom: 48px; }
