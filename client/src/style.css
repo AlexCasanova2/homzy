@@ -1495,6 +1495,40 @@ label {
   min-width: 560px;
 }
 
+/* Caja de veredicto rápido al inicio del análisis */
+.article-content-v3 .verdict-box {
+  margin: 0 0 36px;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #eff6ff, #f5f3ff);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-lg);
+}
+
+.article-content-v3 .verdict-box h2 {
+  margin: 0 0 12px;
+  padding-bottom: 0;
+  border-bottom: none;
+  font-size: 20px;
+}
+
+.article-content-v3 .verdict-box p {
+  margin-bottom: 12px;
+}
+
+.article-content-v3 .takeaways {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 4px 24px;
+}
+
+.article-content-v3 .takeaways li {
+  margin-bottom: 4px;
+  font-size: 16px;
+}
+
 /* Generated affiliate CTA section */
 .article-content-v3 .affiliate-cta {
   margin: 40px 0;

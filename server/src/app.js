@@ -411,7 +411,13 @@ app.get("/api/articles/:idOrSlug", optionalAuthenticate, ah(async (req, res) => 
 
   const categoryIds = (await all("SELECT category_id FROM article_categories WHERE article_id = $1", [id])).map((c) => c.category_id);
 
-  res.json({ ...row, html: sanitizeArticleHtml(row.html), tags, categoryIds });
+  // Resumen del producto vinculado para datos estructurados (JSON-LD) en el cliente.
+  const productRow = row.product_id
+    ? await one("SELECT title, price, rating, reviews, asin, images FROM products WHERE id = $1", [row.product_id])
+    : null;
+  const product = productRow ? { ...productRow, images: safeJsonParse(productRow.images, []) } : null;
+
+  res.json({ ...row, html: sanitizeArticleHtml(row.html), tags, categoryIds, product });
 }));
 
 app.post("/api/articles", authenticate, ah(async (req, res) => {
@@ -622,9 +628,11 @@ app.post("/api/generate-article", generationLimiter, authenticate, ah(async (req
   }
 
   const categoryId = parsed.data.categoryId || product.categoryId || product.category_id;
-  const categoryName = categoryId
-    ? (await one("SELECT name FROM categories WHERE id = $1", [categoryId]))?.name || null
+  const categoryRow = categoryId
+    ? await one("SELECT name, slug FROM categories WHERE id = $1", [categoryId])
     : null;
+  const categoryName = categoryRow?.name || null;
+  const categorySlug = categoryRow?.slug || null;
   const related = (await getRelatedProducts({
     categoryId,
     excludeId: product.id,
@@ -649,6 +657,7 @@ app.post("/api/generate-article", generationLimiter, authenticate, ah(async (req
       relatedProducts: related,
       affiliateLink: finalAffiliateLink,
       category: categoryName,
+      categorySlug,
       llm: { enabled: llmConfig.enabled, config: llmConfig },
       locale: "es-ES",
       tone: "cercano-profesional",
@@ -659,7 +668,7 @@ app.post("/api/generate-article", generationLimiter, authenticate, ah(async (req
       finalResult = { ...result, html: prepareGeneratedArticleHtml(result.html, finalAffiliateLink, allowedAffiliateUrls) };
     } catch {
       const fallback = await generateArticleHtml({
-        product, relatedProducts: related, affiliateLink: finalAffiliateLink, category: categoryName, llm: { enabled: false },
+        product, relatedProducts: related, affiliateLink: finalAffiliateLink, category: categoryName, categorySlug, llm: { enabled: false },
       });
       finalResult = { ...fallback, html: prepareGeneratedArticleHtml(fallback.html, finalAffiliateLink, allowedAffiliateUrls) };
     }

@@ -28,6 +28,28 @@ function truncate(value, max) {
   return `${text.slice(0, max - 1).replace(/[\s,.;:]+\S*$/, "")}…`;
 }
 
+// Las características de Amazon vienen como "Etiqueta: explicación larga".
+function featureParts(feature) {
+  const text = String(feature || "").trim();
+  const separator = text.indexOf(":");
+  if (separator > 4 && separator < 80) {
+    return { label: text.slice(0, separator).trim(), body: text.slice(separator + 1).trim() };
+  }
+  return { label: truncate(text, 60), body: text };
+}
+
+function findDetail(details, patterns) {
+  if (!details) return null;
+  for (const [key, value] of Object.entries(details)) {
+    if (patterns.some((pattern) => pattern.test(key))) return { key, value };
+  }
+  return null;
+}
+
+function formatRating(rating) {
+  return String(rating).replace(".", ",");
+}
+
 function renderComparisonTable(primary, related) {
   const rows = [primary, ...related].slice(0, 3);
   return `
@@ -58,7 +80,7 @@ function renderComparisonTable(primary, related) {
 </table>`;
 }
 
-function renderSpecsTable(details, limit = 10) {
+function renderSpecsTable(details, limit = 12) {
   const entries = Object.entries(details || {}).slice(0, limit);
   if (!entries.length) return "";
   return `
@@ -74,35 +96,83 @@ function renderSpecsTable(details, limit = 10) {
     </section>`;
 }
 
-export function generateSeoArticle({ product, relatedProducts = [], affiliateLink, category }) {
+function renderImage(src, alt, caption) {
+  if (!src) return "";
+  return `
+      <figure>
+        <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy" width="720" height="480" />
+        ${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ""}
+      </figure>`;
+}
+
+export function generateSeoArticle({ product, relatedProducts = [], affiliateLink, category, categorySlug }) {
   const keyword = cleanKeyword(product.title);
-  const title = `${keyword}: opiniones y análisis`;
+  const year = new Date().getFullYear();
+  const title = `${keyword}: opiniones y análisis (${year})`;
   const metaDescription = truncate(
-    `Descubre si ${keyword} merece la pena: análisis, pros y contras, especificaciones y guía de compra.`,
-    160
+    `¿Merece la pena ${keyword}? Análisis con especificaciones reales, pros y contras, y guía de compra (${year}).`,
+    155
   );
 
+  const details = product.details || null;
   const features = Array.isArray(product.features) ? product.features : [];
-  const pros = take(features, 5).map((feature) => truncate(feature, 180));
-  // Las características de Amazon siempre son elogios; no sirven como contras.
-  const cons = [
-    "Comprueba las medidas y el espacio disponible antes de comprar.",
-    "El precio y la disponibilidad pueden variar según el vendedor y el momento.",
-  ];
+  const parsedFeatures = take(features, 5).map(featureParts);
+  const brand = details?.Marca || details?.Fabricante || null;
+  const images = Array.isArray(product.images) ? product.images : [];
+
+  const seoKeywords = [keyword, brand, category, truncate(`opiniones ${keyword}`, 60), "análisis", "comprar", String(year)]
+    .filter(Boolean)
+    .join(", ");
+
+  // --- Veredicto rápido (answer-first, apto para featured snippets) ---
+  const ratingLine = product.rating
+    ? `Valoración de usuarios: <strong>${formatRating(product.rating)}/5</strong>${product.reviews ? ` (${escapeHtml(String(product.reviews))} opiniones)` : ""}.`
+    : "";
+  const priceLine = product.price ? `Precio orientativo: <strong>${escapeHtml(product.price)}</strong>.` : "";
+  const takeaways = parsedFeatures.slice(0, 4).map((f) => `<li><strong>${escapeHtml(f.label)}</strong></li>`).join("\n        ");
+
+  // --- FAQ construida con datos reales de la ficha técnica ---
+  const faq = [];
+  faq.push({
+    q: `¿Vale la pena ${keyword}?`,
+    a: `${product.rating ? `Con una valoración media de ${formatRating(product.rating)}/5${product.reviews ? ` entre ${product.reviews} opiniones` : ""}, es` : "Es"} una opción sólida si buscas ${category ? `un producto de ${category.toLowerCase()}` : "una compra"} con buena relación calidad-precio.`,
+  });
+  const dims = findDetail(details, [/dimensiones artículo/i, /dimensiones del producto/i, /dimensiones/i]);
+  if (dims) faq.push({ q: `¿Qué dimensiones tiene ${keyword}?`, a: `Sus medidas son ${dims.value}.` });
+  const weight = findDetail(details, [/peso/i]);
+  if (weight) faq.push({ q: "¿Cuánto pesa?", a: `El peso del producto es de ${weight.value}.` });
+  const assembly = findDetail(details, [/requiere montaje/i, /montaje/i, /ensambl/i]);
+  if (assembly) {
+    const instructions = findDetail(details, [/instrucciones de montaje/i]);
+    faq.push({ q: "¿Requiere montaje?", a: `${/^no/i.test(assembly.value) ? "No requiere montaje." : `Montaje: ${assembly.value}.`}${instructions ? ` ${instructions.value}.` : ""}` });
+  }
+  const care = findDetail(details, [/cuidado/i, /limpieza/i, /lavable/i]);
+  if (care) faq.push({ q: "¿Cómo se limpia o cuida?", a: `${care.value}.` });
+  const material = findDetail(details, [/material o tela/i, /tipo de tela/i, /^material/i, /acabado/i]);
+  if (material) faq.push({ q: "¿De qué material está hecho?", a: `${material.value}.` });
+  faq.push({
+    q: "¿Qué alternativas existen?",
+    a: relatedProducts.length
+      ? "En la comparativa de este análisis encontrarás alternativas similares con distintos rangos de precio."
+      : "Te recomendamos comparar medidas, materiales y precio con otros modelos de la misma categoría antes de decidir.",
+  });
+
+  // --- Guía de compra con criterios derivados de los datos ---
+  const buyingCriteria = [];
+  if (dims) buyingCriteria.push(`<strong>Espacio disponible:</strong> comprueba que las medidas (${escapeHtml(dims.value)}) encajan donde lo quieres colocar.`);
+  if (material) buyingCriteria.push(`<strong>Materiales:</strong> este modelo usa ${escapeHtml(material.value)}; valora resistencia y mantenimiento según tu uso.`);
+  if (assembly) buyingCriteria.push(`<strong>Montaje:</strong> ${escapeHtml(assembly.value)}.`);
+  buyingCriteria.push("<strong>Presupuesto:</strong> el precio puede variar según ofertas y vendedor; compara antes de comprar.");
+  buyingCriteria.push("<strong>Opiniones recientes:</strong> revisa las valoraciones más nuevas, reflejan la calidad actual del producto.");
 
   const related = take(relatedProducts, 7);
   const comparisonTable = renderComparisonTable({ ...product, affiliateUrl: affiliateLink }, related);
-  const specsTable = renderSpecsTable(product.details);
-  const brand = product.details?.Marca || product.details?.Fabricante || null;
-  const seoKeywords = [keyword, brand, category, "opiniones", "análisis", "comprar"]
-    .filter(Boolean)
-    .join(", ");
+  const specsTable = renderSpecsTable(details);
 
   const introDescription = product.description
     ? `<p>${escapeHtml(truncate(product.description, 400))}</p>`
     : "";
 
-  const link = affiliateLink;
   const slug = slugify(title);
 
   const html = `<!doctype html>
@@ -116,12 +186,18 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
 <body>
   <article>
     <h1>${escapeHtml(title)}</h1>
-    ${category ? `<p><strong>Categoría:</strong> ${escapeHtml(category)}</p>` : ""}
+
+    <section class="verdict-box">
+      <h2>Veredicto rápido</h2>
+      <p><strong>${escapeHtml(keyword)}</strong>${brand ? ` de <strong>${escapeHtml(brand)}</strong>` : ""} destaca por su relación calidad-precio. ${ratingLine} ${priceLine}</p>
+      ${takeaways ? `<ul class="takeaways">\n        ${takeaways}\n      </ul>` : ""}
+    </section>
 
     <section>
       <h2>Introducción</h2>
-      <p>Si estás buscando ${escapeHtml(keyword)}, aquí encontrarás un análisis completo con datos clave, ventajas reales y aspectos a tener en cuenta antes de comprar.</p>
+      <p>Si estás buscando ${escapeHtml(keyword)}, aquí encontrarás un análisis completo con datos reales: especificaciones, ventajas, inconvenientes y todo lo que conviene revisar antes de comprar.</p>
       ${introDescription}
+      ${renderImage(images[1], `${keyword} - vista de detalle`, null)}
     </section>
 
     <section>
@@ -129,6 +205,41 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
       ${comparisonTable}
     </section>
     ${specsTable}
+    ${
+      parsedFeatures.length
+        ? `
+    <section>
+      <h2>Análisis de características</h2>
+      ${parsedFeatures
+        .map((f) => `
+      <h3>${escapeHtml(f.label)}</h3>
+      <p>${escapeHtml(f.body)}</p>`)
+        .join("\n")}
+    </section>`
+        : ""
+    }
+
+    <section>
+      <h2>Pros y contras</h2>
+      <h3>Pros</h3>
+      <ul>
+        ${parsedFeatures.length ? parsedFeatures.map((f) => `<li><strong>${escapeHtml(f.label)}:</strong> ${escapeHtml(truncate(f.body, 120))}</li>`).join("\n        ") : "<li>Calidad general destacable.</li>"}
+      </ul>
+      <h3>A tener en cuenta</h3>
+      <ul>
+        <li>Comprueba las medidas y el espacio disponible antes de comprar.</li>
+        <li>El precio y la disponibilidad pueden variar según el vendedor y el momento.</li>
+      </ul>
+    </section>
+    ${renderImage(images[2], `${keyword} - características`, null)}
+
+    <section>
+      <h2>Guía de compra</h2>
+      <p>Antes de decidirte, repasa estos puntos:</p>
+      <ul>
+        ${buyingCriteria.map((c) => `<li>${c}</li>`).join("\n        ")}
+      </ul>
+    </section>
     ${
       related.length
         ? `
@@ -142,32 +253,16 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
     }
 
     <section>
-      <h2>Pros y contras</h2>
-      <h3>Pros</h3>
-      <ul>
-        ${pros.length ? pros.map((p) => `<li>${escapeHtml(p)}</li>`).join("\n        ") : "<li>Calidad general destacable.</li>"}
-      </ul>
-      <h3>A tener en cuenta</h3>
-      <ul>
-        ${cons.map((c) => `<li>${escapeHtml(c)}</li>`).join("\n        ")}
-      </ul>
+      <h2>Preguntas frecuentes</h2>
+      ${faq.map((item) => `
+      <h3>${escapeHtml(item.q)}</h3>
+      <p>${escapeHtml(item.a)}</p>`).join("\n")}
     </section>
 
     <section>
-      <h2>Guía de compra</h2>
-      <p>Antes de comprar, revisa la compatibilidad, el presupuesto, las valoraciones y las características clave que más importan para tu uso.</p>
-    </section>
-
-    <section>
-      <h2>FAQ</h2>
-      <h3>¿Vale la pena ${escapeHtml(keyword)}?</h3>
-      <p>Si buscas una opción equilibrada con buenas valoraciones y precio competitivo, es una opción sólida.</p>
-      <h3>¿Qué alternativas existen?</h3>
-      <p>${
-        related.length
-          ? "En la comparativa anterior verás opciones similares con distintos rangos de precio."
-          : "Te recomendamos comparar con otros modelos de la misma categoría en cuanto a medidas, materiales y precio."
-      }</p>
+      <h2>Veredicto final</h2>
+      <p>${escapeHtml(keyword)} es una compra recomendable si priorizas ${parsedFeatures[0] ? escapeHtml(parsedFeatures[0].label.toLowerCase()) : "la relación calidad-precio"}${parsedFeatures[1] ? ` y ${escapeHtml(parsedFeatures[1].label.toLowerCase())}` : ""}. Si tu prioridad es otra, revisa las alternativas de la comparativa antes de decidir.</p>
+      ${category && categorySlug ? `<p><a href="/categoria/${escapeHtml(categorySlug)}">Ver más análisis de ${escapeHtml(category)}</a></p>` : ""}
     </section>
   </article>
 </body>
@@ -180,6 +275,7 @@ export async function generateArticleHtml({
   relatedProducts = [],
   affiliateLink,
   category,
+  categorySlug,
   llm,
   locale = "es-ES",
   tone = "cercano-profesional",
@@ -206,5 +302,5 @@ export async function generateArticleHtml({
     }
   }
 
-  return generateSeoArticle({ product, relatedProducts, affiliateLink, category });
+  return generateSeoArticle({ product, relatedProducts, affiliateLink, category, categorySlug });
 }

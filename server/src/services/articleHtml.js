@@ -19,6 +19,27 @@ function isAmazonUrl(value) {
   }
 }
 
+const STORE_ID_PATTERN = /^[A-Za-z0-9_-]{2,64}$/;
+
+// Todo enlace de Amazon sale monetizado con el tag propio: se canonicaliza a
+// /dp/{ASIN}?tag=... cuando hay ASIN y se fuerza el tag en el resto de URLs.
+export function monetizeAmazonUrl(href, storeId = process.env.AMAZON_STORE_ID) {
+  let url;
+  try {
+    url = parseAmazonUrl(href);
+  } catch {
+    return href;
+  }
+  if (!storeId || !STORE_ID_PATTERN.test(storeId)) return href;
+
+  const asinMatch = url.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
+  if (asinMatch) {
+    return `${url.origin}/dp/${asinMatch[1].toUpperCase()}?tag=${encodeURIComponent(storeId)}`;
+  }
+  url.searchParams.set("tag", storeId);
+  return url.href;
+}
+
 export function sanitizeArticleHtml(html) {
   return sanitizeHtml(String(html || ""), {
     allowedTags,
@@ -39,7 +60,7 @@ export function sanitizeArticleHtml(html) {
         if (attributes.href && isAmazonUrl(attributes.href)) {
           return {
             tagName: "a",
-            attribs: { ...attributes, rel: "nofollow sponsored noopener" },
+            attribs: { ...attributes, href: monetizeAmazonUrl(attributes.href), rel: "nofollow sponsored noopener" },
           };
         }
         const safeRel = String(attributes.rel || "")
@@ -62,9 +83,15 @@ export function prepareGeneratedArticleHtml(html, affiliateUrl, allowedAffiliate
     throw new Error("Generated article is missing required structure");
   }
 
-  const allowedDestinations = new Set(allowedAffiliateUrls.filter(Boolean).map((value) => new URL(value).href));
+  // El sanitizador canonicaliza y monetiza los enlaces de Amazon, así que la
+  // lista de destinos permitidos se compara en su forma monetizada.
+  const allowedDestinations = new Set(
+    allowedAffiliateUrls.filter(Boolean).map((value) => new URL(monetizeAmazonUrl(value)).href)
+  );
   $("a[href]").each((_index, element) => {
     const href = $(element).attr("href");
+    // Los enlaces internos del propio sitio (rutas relativas) son seguros y buenos para SEO.
+    if (href.startsWith("/") && !href.startsWith("//")) return;
     try {
       if (!allowedDestinations.has(new URL(href).href)) $(element).removeAttr("href target rel");
     } catch {
@@ -72,13 +99,14 @@ export function prepareGeneratedArticleHtml(html, affiliateUrl, allowedAffiliate
     }
   });
 
-  const escapedUrl = affiliateUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  const finalCtaUrl = monetizeAmazonUrl(affiliateUrl);
+  const escapedUrl = finalCtaUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   $("article").first().append(
     `<section class="affiliate-cta"><h2>Consulta precio y disponibilidad</h2><p><a class="btn-buy" href="${escapedUrl}" target="_blank" rel="nofollow sponsored noopener">COMPRAR AL MEJOR PRECIO</a></p></section>`
   );
   clean = sanitizeArticleHtml($.html());
   $ = cheerio.load(clean);
-  const hasCta = $("a").toArray().some((element) => $(element).attr("href") === affiliateUrl);
+  const hasCta = $("a").toArray().some((element) => $(element).attr("href") === finalCtaUrl);
   if (!hasCta) throw new Error("Generated article has no valid affiliate CTA");
   return clean;
 }

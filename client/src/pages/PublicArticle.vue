@@ -213,6 +213,7 @@ async function loadArticle(slug) {
     await nextTick();
     secureExternalLinks();
     enhanceContent();
+    injectStructuredData();
     updateProgress();
   } catch (requestError) {
     if (currentRequest !== requestNumber) return;
@@ -268,6 +269,73 @@ function enhanceContent() {
 
 function scrollToHeading(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function parsePriceEuro(price) {
+  const match = String(price || "").replace(/\./g, "").replace(",", ".").match(/(\d+(?:\.\d+)?)/);
+  return match ? Number(match[1]) : null;
+}
+
+// Datos estructurados para rich results de Google (estrellas y FAQs en el buscador).
+function injectStructuredData() {
+  const art = article.value;
+  if (!art) return;
+  const blocks = [];
+
+  if (art.product) {
+    const price = parsePriceEuro(art.product.price);
+    blocks.push({
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: art.product.title,
+      image: (art.product.images?.length ? art.product.images : [art.image_url]).filter(Boolean).slice(0, 5),
+      ...(art.meta_description ? { description: art.meta_description } : {}),
+      ...(art.product.rating && art.product.reviews
+        ? { aggregateRating: { "@type": "AggregateRating", ratingValue: art.product.rating, reviewCount: art.product.reviews, bestRating: 5 } }
+        : {}),
+      ...(price
+        ? { offers: { "@type": "Offer", price, priceCurrency: "EUR", availability: "https://schema.org/InStock", url: window.location.href } }
+        : {}),
+    });
+  }
+
+  const rootEl = articleContent.value;
+  if (rootEl) {
+    const faqHeading = [...rootEl.querySelectorAll("h2")].find((h) => /preguntas frecuentes|faq/i.test(h.textContent));
+    const sectionEl = faqHeading?.closest("section") || faqHeading?.parentElement;
+    if (sectionEl) {
+      const items = [...sectionEl.querySelectorAll("h3")]
+        .map((h3) => {
+          let answer = "";
+          let node = h3.nextElementSibling;
+          while (node && node.tagName === "P") {
+            answer += ` ${node.textContent}`;
+            node = node.nextElementSibling;
+          }
+          return { q: h3.textContent.trim(), a: answer.trim() };
+        })
+        .filter((item) => item.q && item.a);
+      if (items.length >= 2) {
+        blocks.push({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: items.map((item) => ({
+            "@type": "Question",
+            name: item.q,
+            acceptedAnswer: { "@type": "Answer", text: item.a },
+          })),
+        });
+      }
+    }
+  }
+
+  blocks.forEach((data) => {
+    const el = document.createElement("script");
+    el.type = "application/ld+json";
+    el.textContent = JSON.stringify(data);
+    el.dataset.homzyArticleMeta = "true";
+    document.head.appendChild(el);
+  });
 }
 
 function secureExternalLinks() {
