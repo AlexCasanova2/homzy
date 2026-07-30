@@ -22,8 +22,14 @@
     <div class="container">
       <nav class="breadcrumbs">
         <RouterLink to="/">Inicio</RouterLink>
-        <ChevronRightIcon :size="14" />
-        <span>{{ categoryName(article?.category_id) || "Análisis" }}</span>
+        <template v-for="crumb in breadcrumb" :key="crumb.id">
+          <ChevronRightIcon :size="14" />
+          <RouterLink :to="`/categoria/${crumb.slug}`">{{ crumb.name }}</RouterLink>
+        </template>
+        <template v-if="!breadcrumb.length">
+          <ChevronRightIcon :size="14" />
+          <span>Análisis</span>
+        </template>
       </nav>
 
       <header class="article-header">
@@ -66,21 +72,6 @@
         <div ref="articleContent" class="article-content-v3" v-html="article.html" @click="trackAffiliateClick"></div>
       </main>
 
-      <div class="article-fact-strip reveal">
-        <div class="fact">
-          <span>Actualizado</span>
-          <strong>{{ formatDate(article?.updated_at) }}</strong>
-        </div>
-        <div class="fact">
-          <span>Categoría</span>
-          <strong>{{ categoryName(article?.category_id) || "Análisis" }}</strong>
-        </div>
-        <div class="fact">
-          <span>Método</span>
-          <strong>Investigación editorial</strong>
-        </div>
-      </div>
-
       <div class="cta-banner article-cta-banner reveal">
         <div class="cta-content">
           <h2>¿Te ha resultado útil?</h2>
@@ -97,7 +88,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref, onUnmounted, watch } from "vue";
+import { computed, nextTick, onMounted, ref, onUnmounted, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import api from "../api.js";
 import { useToastStore } from "../stores/toast.js";
@@ -147,6 +138,20 @@ async function loadCategories() {
 function categoryName(id) {
   return categories.value.find((cat) => cat.id === id)?.name || "";
 }
+
+// Cadena de categorías del artículo, de la raíz a la hoja, para las migas de pan.
+const breadcrumb = computed(() => {
+  const byId = new Map(categories.value.map((cat) => [cat.id, cat]));
+  const chain = [];
+  const seen = new Set();
+  let current = byId.get(article.value?.category_id);
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    chain.unshift(current);
+    current = current.parent_id ? byId.get(current.parent_id) : null;
+  }
+  return chain;
+});
 
 function readTime(html = "") {
   const words = html ? html.replace(/<[^>]+>/g, "").trim().split(/\s+/).filter(Boolean).length : 0;
@@ -413,40 +418,6 @@ onUnmounted(() => {
 .article-main :deep(.article-content-v3),
 .article-main :deep(.article-toc) { max-width: none; }
 
-.article-fact-strip {
-  margin: 48px auto 0;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding: 20px 28px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-
-.article-fact-strip .fact {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  text-align: center;
-}
-
-.article-fact-strip .fact span {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.article-fact-strip .fact strong {
-  font-size: 15px;
-  color: var(--text);
-}
-
-@media (max-width: 640px) {
-  .article-fact-strip { grid-template-columns: 1fr; gap: 14px; }
-}
 .affiliate-disclosure {
   max-width: 720px;
   margin: 14px auto 0;
