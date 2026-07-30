@@ -1,8 +1,8 @@
-name: Deploy to production
+# Legado: despliegue SSH a Dinahosting. Producción vive en Vercel (integración
+# GitHub automática); este workflow queda solo para lanzamientos manuales.
+name: Deploy to Dinahosting (manual)
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
