@@ -27,6 +27,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "better-sqlite3": "^13.0.2"
+    "better-sqlite3": "^12.11.1"
   }
 }
