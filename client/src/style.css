@@ -1093,9 +1093,18 @@ label {
   font-size: 12px;
 }
 
+/* La hamburguesa solo tiene sentido en móvil, donde el menú principal se oculta. */
+.mobile-menu-button {
+  display: none;
+}
+
 @media (max-width: 720px) {
   .main-nav {
     display: none;
+  }
+
+  .mobile-menu-button {
+    display: flex;
   }
 
   .hero-title {
