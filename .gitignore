@@ -4,6 +4,7 @@ dist/
 .DS_Store
 *.db
 *.db-journal
+db/app.db*
 client/node_modules/
 server/node_modules/
 client/dist/

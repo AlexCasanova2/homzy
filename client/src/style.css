@@ -1374,26 +1374,146 @@ label {
   font-size: 18px;
   line-height: 1.8;
   color: #334155;
-  overflow-x: auto;
+  max-width: 720px;
+  overflow-wrap: break-word;
+}
+
+/* External/imported content may carry its own h1; render it as a section heading. */
+.article-content-v3 h1 {
+  font-family: "Montserrat", sans-serif;
+  font-size: 34px;
+  line-height: 1.25;
+  margin: 8px 0 24px;
+  color: var(--text);
 }
 
 .article-content-v3 h2 {
   font-family: "Montserrat", sans-serif;
-  font-size: 32px;
-  margin: 48px 0 20px;
+  font-size: 28px;
+  line-height: 1.3;
+  margin: 48px 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--primary-light);
+  color: var(--text);
+  scroll-margin-top: 96px;
+}
+
+.article-content-v3 h3 {
+  font-family: "Montserrat", sans-serif;
+  font-size: 21px;
+  line-height: 1.35;
+  margin: 32px 0 12px;
+  color: var(--text);
+  scroll-margin-top: 96px;
+}
+
+.article-content-v3 h4 {
+  font-size: 18px;
+  margin: 24px 0 10px;
+  color: var(--text);
 }
 
 .article-content-v3 p {
-  margin-bottom: 24px;
+  margin-bottom: 22px;
 }
 
-.article-content-v3 ul {
-  margin-bottom: 32px;
-  padding-left: 24px;
+.article-content-v3 a:not(.btn-buy) {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.article-content-v3 strong {
+  color: var(--text);
+}
+
+.article-content-v3 ul,
+.article-content-v3 ol {
+  margin-bottom: 28px;
+  padding-left: 26px;
 }
 
 .article-content-v3 li {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+}
+
+.article-content-v3 li::marker {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.article-content-v3 img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  margin: 8px 0 24px;
+}
+
+.article-content-v3 figure {
+  margin: 32px 0;
+}
+
+.article-content-v3 figcaption {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 8px;
+}
+
+.article-content-v3 blockquote {
+  margin: 32px 0;
+  padding: 18px 24px;
+  border-left: 4px solid var(--primary);
+  background: var(--primary-light);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  font-style: italic;
+  color: var(--text);
+}
+
+.article-content-v3 blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.article-content-v3 hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 40px 0;
+}
+
+/* Tables get wrapped in .table-wrap at render time for horizontal scroll on mobile. */
+.article-content-v3 .table-wrap {
+  overflow-x: auto;
+  margin: 32px 0;
+  border-radius: var(--radius-md);
+  border: 1px solid #e2e8f0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.article-content-v3 .table-wrap table {
+  margin: 0;
+  border-radius: 0;
+  min-width: 560px;
+}
+
+/* Generated affiliate CTA section */
+.article-content-v3 .affiliate-cta {
+  margin: 40px 0;
+  padding: 28px 24px;
+  text-align: center;
+  background: var(--primary-light);
+  border: 1px solid rgba(37, 99, 235, 0.15);
+  border-radius: var(--radius-lg);
+}
+
+.article-content-v3 .affiliate-cta h2 {
+  border-bottom: none;
+  margin: 0 0 16px;
+  padding-bottom: 0;
+  font-size: 24px;
+}
+
+.article-content-v3 .affiliate-cta p {
+  margin-bottom: 0;
 }
 
 /* Affiliate Buy Buttons */
@@ -1450,6 +1570,75 @@ label {
 .article-content-v3 th {
   background: #f1f5f9;
   font-weight: 700;
+}
+
+/* Tabla de contenidos generada a partir de los h2 del artículo */
+.article-toc {
+  max-width: 720px;
+  margin: 0 0 32px;
+  padding: 20px 24px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.article-toc__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.article-toc ol {
+  margin: 0;
+  padding-left: 22px;
+  columns: 2;
+  column-gap: 32px;
+}
+
+.article-toc li {
+  margin-bottom: 8px;
+  font-size: 15px;
+  line-height: 1.4;
+  break-inside: avoid;
+}
+
+.article-toc a {
+  color: var(--secondary);
+  text-decoration: none;
+}
+
+.article-toc a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.article-toc li::marker {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .article-toc ol {
+    columns: 1;
+  }
+}
+
+.empty-note {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 16px;
+  padding: 32px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  max-width: 560px;
+  margin: 0 auto;
 }
 
 .article-sidebar {

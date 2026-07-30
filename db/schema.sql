@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS products (
   reviews INTEGER,
   features TEXT,
   images TEXT,
+  description TEXT,
+  details TEXT,
   url TEXT,
   category_id TEXT,
   created_at TEXT NOT NULL,

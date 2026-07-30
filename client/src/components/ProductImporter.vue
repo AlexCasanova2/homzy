@@ -79,12 +79,29 @@
                 <span v-else>-</span>
               </td>
               <td class="text-right">
-                <button class="secondary small" @click="generateArticle(product)" :disabled="isGenerating">
-                  <div class="flex-center">
-                    <SparklesIcon :size="14" class="mr-8" />
-                    {{ generatingId === product.id ? "Generando..." : "Generar artículo" }}
-                  </div>
-                </button>
+                <div class="row-actions">
+                  <button class="secondary small" @click="copyProductData(product)" title="Copiar datos del producto (JSON) para redacción externa">
+                    <div class="flex-center">
+                      <CopyIcon :size="14" class="mr-8" />
+                      Copiar datos
+                    </div>
+                  </button>
+                  <button class="secondary small" @click="reimportProduct(product)" :disabled="reimportingId === product.id" title="Actualizar datos desde Amazon">
+                    <div class="flex-center">
+                      <RefreshCwIcon :size="14" class="mr-8" />
+                      {{ reimportingId === product.id ? "Actualizando..." : "Reimportar" }}
+                    </div>
+                  </button>
+                  <button class="secondary small" @click="generateArticle(product)" :disabled="isGenerating">
+                    <div class="flex-center">
+                      <SparklesIcon :size="14" class="mr-8" />
+                      {{ generatingId === product.id ? "Generando..." : "Generar artículo" }}
+                    </div>
+                  </button>
+                  <button class="danger small" @click="removeProduct(product)" title="Eliminar producto">
+                    <Trash2Icon :size="14" />
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="products.length === 0">
@@ -143,6 +160,7 @@
 .text-center { text-align: center; }
 .font-bold { font-weight: 700; }
 .flex-center { display: flex; align-items: center; justify-content: center; }
+.row-actions { display: inline-flex; gap: 8px; }
 
 .section-header {
   display: flex;
@@ -340,13 +358,16 @@
 <script setup>
 import { onMounted, ref, computed } from "vue";
 import api from "../api.js";
-import { 
-  DownloadIcon, 
-  LinkIcon, 
-  PackageIcon, 
-  StarIcon, 
-  SparklesIcon, 
-  FileTextIcon 
+import {
+  DownloadIcon,
+  LinkIcon,
+  PackageIcon,
+  StarIcon,
+  SparklesIcon,
+  FileTextIcon,
+  CopyIcon,
+  RefreshCwIcon,
+  Trash2Icon,
 } from "lucide-vue-next";
 import { useToastStore } from "../stores/toast.js";
 
@@ -358,6 +379,7 @@ const generated = ref(null);
 const isGenerating = ref(false);
 const generatingId = ref(null);
 const isImporting = ref(false);
+const reimportingId = ref(null);
 const isLoading = ref(true);
 const loadError = ref("");
 const importError = ref("");
@@ -404,6 +426,55 @@ async function importProduct() {
     importError.value = error?.response?.data?.error || error?.message || "No se pudo importar el producto.";
   } finally {
     isImporting.value = false;
+  }
+}
+
+async function reimportProduct(product) {
+  if (!product.url) {
+    toast.error("Este producto no tiene URL guardada.");
+    return;
+  }
+  reimportingId.value = product.id;
+  try {
+    await api.post("/products/import", { url: product.url, categoryId: product.categoryId || undefined });
+    await loadProducts();
+    toast.success("Producto actualizado desde Amazon");
+  } catch (error) {
+    toast.error(error?.response?.data?.error || "No se pudo reimportar el producto.");
+  } finally {
+    reimportingId.value = null;
+  }
+}
+
+async function removeProduct(product) {
+  if (!window.confirm(`¿Eliminar "${product.title}" del catálogo?`)) return;
+  try {
+    await api.delete(`/products/${product.id}`);
+    await loadProducts();
+    toast.success("Producto eliminado");
+  } catch (error) {
+    toast.error(error?.response?.data?.error || "No se pudo eliminar el producto.");
+  }
+}
+
+async function copyProductData(product) {
+  const payload = {
+    asin: product.asin,
+    title: product.title,
+    price: product.price,
+    rating: product.rating,
+    reviews: product.reviews,
+    features: product.features,
+    description: product.description || null,
+    details: product.details || null,
+    images: product.images,
+    url: product.url,
+  };
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    toast.success("Datos del producto copiados al portapapeles");
+  } catch {
+    toast.error("No se pudo copiar. Comprueba los permisos del navegador.");
   }
 }
 

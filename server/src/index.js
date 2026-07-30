@@ -35,6 +35,7 @@ const { authenticate, optionalAuthenticate } = createAuthMiddleware(JWT_SECRET);
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
 const importLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
 const generationLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
+const newsletterLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -44,6 +45,19 @@ app.use(morgan("dev"));
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, time: nowIso() });
 });
+
+// Slugs are UNIQUE per table; append -2, -3... instead of failing the insert.
+function uniqueSlug(table, base, excludeId = null) {
+  const root = base || "item";
+  const stmt = excludeId
+    ? db.prepare(`SELECT 1 FROM ${table} WHERE slug = ? AND id != ?`)
+    : db.prepare(`SELECT 1 FROM ${table} WHERE slug = ?`);
+  let candidate = root;
+  for (let i = 2; stmt.get(...(excludeId ? [candidate, excludeId] : [candidate])); i += 1) {
+    candidate = `${root}-${i}`;
+  }
+  return candidate;
+}
 
 // -- AUTH --
 app.get("/api/auth/setup-check", (req, res) => {
@@ -91,13 +105,13 @@ app.get("/api/auth/me", authenticate, (req, res) => {
 });
 
 // -- NEWSLETTER --
-app.post("/api/newsletter/subscribe", (req, res) => {
-  const { email } = req.body;
-  if (!email || !email.includes('@')) return res.status(400).json({ error: "Email inválido" });
+app.post("/api/newsletter/subscribe", newsletterLimiter, (req, res) => {
+  const parsed = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Email inválido" });
 
   try {
     const id = nanoid();
-    db.prepare("INSERT INTO newsletter_subscribers (id, email, created_at) VALUES (?, ?, ?)").run(id, email, nowIso());
+    db.prepare("INSERT INTO newsletter_subscribers (id, email, created_at) VALUES (?, ?, ?)").run(id, parsed.data.email, nowIso());
     res.json({ success: true });
   } catch (err) {
     if (err.message.includes("UNIQUE")) return res.json({ success: true }); // Silent success
@@ -119,6 +133,7 @@ app.get("/api/products", authenticate, (_req, res) => {
       ...row,
       features: safeJsonParse(row.features, []),
       images: safeJsonParse(row.images, []),
+      details: safeJsonParse(row.details, null),
       categoryId: row.category_id,
       createdAt: row.created_at,
     }));
@@ -158,11 +173,13 @@ app.post("/api/products/import", importLimiter, authenticate, async (req, res) =
 
     const stmt = db.prepare(
       `INSERT INTO products
-       (id, asin, title, price, rating, reviews, features, images, url, category_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       (id, asin, title, price, rating, reviews, features, images, description, details, url, category_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(asin) DO UPDATE SET
          title = excluded.title, price = excluded.price, rating = excluded.rating, reviews = excluded.reviews,
          features = excluded.features, images = excluded.images, url = excluded.url,
+         description = COALESCE(excluded.description, products.description),
+         details = COALESCE(excluded.details, products.details),
          category_id = COALESCE(excluded.category_id, products.category_id)`
     );
 
@@ -175,6 +192,8 @@ app.post("/api/products/import", importLimiter, authenticate, async (req, res) =
       product.reviews,
       JSON.stringify(product.features || []),
       JSON.stringify(product.images || []),
+      product.description || null,
+      product.details ? JSON.stringify(product.details) : null,
       product.url || targetUrl,
       categoryId || null,
       createdAt
@@ -186,6 +205,16 @@ app.post("/api/products/import", importLimiter, authenticate, async (req, res) =
     console.error("Scrape error:", error?.message || error);
     res.status(error?.message?.includes("Amazon marketplace") ? 400 : 502).json({ error: error?.message || "scraping failed" });
   }
+});
+
+app.delete("/api/products/:id", authenticate, (req, res) => {
+  const linkedArticles = db.prepare("SELECT count(*) as count FROM articles WHERE product_id = ?").get(req.params.id);
+  if (linkedArticles.count > 0) {
+    return res.status(409).json({ error: `El producto tiene ${linkedArticles.count} artículo(s) vinculado(s). Elimínalos o desvincúlalos primero.` });
+  }
+  const result = db.prepare("DELETE FROM products WHERE id = ?").run(req.params.id);
+  if (!result.changes) return res.status(404).json({ error: "not found" });
+  res.json({ ok: true });
 });
 
 // Categories
@@ -209,7 +238,7 @@ app.post("/api/categories", authenticate, (req, res) => {
 
   const id = nanoid();
   const name = parsed.data.name;
-  const slug = parsed.data.slug || slugify(name);
+  const slug = uniqueSlug("categories", parsed.data.slug || slugify(name));
   const createdAt = nowIso();
   const parentId = parsed.data.parentId || null;
 
@@ -257,7 +286,7 @@ app.put("/api/categories/:id", authenticate, (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const { name, description, parentId, slug, seoTitle, seoKeywords, seoDescription } = parsed.data;
-  const finalSlug = slug || slugify(name);
+  const finalSlug = uniqueSlug("categories", slug || slugify(name), req.params.id);
 
   db.prepare(
     `UPDATE categories 
@@ -288,7 +317,7 @@ app.post("/api/tags", authenticate, (req, res) => {
 
   const id = nanoid();
   const name = parsed.data.name;
-  const slug = slugify(name);
+  const slug = uniqueSlug("tags", slugify(name));
   const createdAt = nowIso();
 
   db.prepare("INSERT INTO tags (id, name, slug, created_at) VALUES (?, ?, ?, ?)").run(
@@ -408,7 +437,7 @@ app.post("/api/articles", authenticate, (req, res) => {
   const id = nanoid();
   const createdAt = nowIso();
   const updatedAt = createdAt;
-  const slug = parsed.data.slug || slugify(parsed.data.title);
+  const slug = uniqueSlug("articles", parsed.data.slug || slugify(parsed.data.title));
   const mainCategoryId = parsed.data.categoryIds?.[0] || null;
   const cleanHtml = sanitizeArticleHtml(parsed.data.html);
   if (cleanHtml.trim().length < 10) return res.status(400).json({ error: "Article HTML is empty after sanitization" });
@@ -466,7 +495,8 @@ app.put("/api/articles/:id", authenticate, (req, res) => {
 
   const updatedAt = nowIso();
   const title = parsed.data.title ?? existing.title;
-  const slug = parsed.data.slug ?? (parsed.data.title ? slugify(parsed.data.title) : existing.slug);
+  const requestedSlug = parsed.data.slug ?? (parsed.data.title ? slugify(parsed.data.title) : existing.slug);
+  const slug = uniqueSlug("articles", requestedSlug, req.params.id);
 
   // Use the first category as the main category_id for the articles table
   const mainCategoryId = parsed.data.categoryIds?.[0] ?? existing.category_id;
@@ -532,6 +562,8 @@ app.post("/api/generate-article", generationLimiter, authenticate, async (req, r
         reviews: z.number().nullable().optional(),
         features: z.array(z.string()).optional(),
         images: z.array(z.string()).optional(),
+        description: z.string().nullable().optional(),
+        details: z.record(z.string()).nullable().optional(),
         url: z.string().url().optional(),
         categoryId: z.string().optional(),
       })
@@ -554,6 +586,7 @@ app.post("/api/generate-article", generationLimiter, authenticate, async (req, r
       ...dbProduct,
       features: safeJsonParse(dbProduct.features, []),
       images: safeJsonParse(dbProduct.images, []),
+      details: safeJsonParse(dbProduct.details, null),
       categoryId: dbProduct.category_id,
     };
   }
@@ -579,6 +612,9 @@ app.post("/api/generate-article", generationLimiter, authenticate, async (req, r
   }
 
   const categoryId = parsed.data.categoryId || product.categoryId || product.category_id;
+  const categoryName = categoryId
+    ? db.prepare("SELECT name FROM categories WHERE id = ?").get(categoryId)?.name || null
+    : null;
   const related = getRelatedProducts(db, {
     categoryId,
     excludeId: product.id,
@@ -602,7 +638,7 @@ app.post("/api/generate-article", generationLimiter, authenticate, async (req, r
       product,
       relatedProducts: related,
       affiliateLink: finalAffiliateLink,
-      category: categoryId,
+      category: categoryName,
       llm: { enabled: llmConfig.enabled, config: llmConfig },
       locale: "es-ES",
       tone: "cercano-profesional",
@@ -613,7 +649,7 @@ app.post("/api/generate-article", generationLimiter, authenticate, async (req, r
       finalResult = { ...result, html: prepareGeneratedArticleHtml(result.html, finalAffiliateLink, allowedAffiliateUrls) };
     } catch {
       const fallback = await generateArticleHtml({
-        product, relatedProducts: related, affiliateLink: finalAffiliateLink, category: categoryId, llm: { enabled: false },
+        product, relatedProducts: related, affiliateLink: finalAffiliateLink, category: categoryName, llm: { enabled: false },
       });
       finalResult = { ...fallback, html: prepareGeneratedArticleHtml(fallback.html, finalAffiliateLink, allowedAffiliateUrls) };
     }
@@ -627,7 +663,7 @@ app.post("/api/generate-article", generationLimiter, authenticate, async (req, r
     const updatedAt = createdAt;
     const title = (finalResult.seoTitle || product.title || "Articulo generado").slice(0, 200);
     const finalHtml = finalResult.html;
-    const finalSlug = finalResult.slug || slugify(title);
+    const finalSlug = uniqueSlug("articles", finalResult.slug || slugify(title));
 
     try {
       db.transaction(() => {

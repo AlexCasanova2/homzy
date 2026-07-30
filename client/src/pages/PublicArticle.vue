@@ -29,8 +29,7 @@
       <header class="article-header">
         <h1 class="article-title">{{ article.title }}</h1>
         <p class="article-subtitle">{{ article?.meta_description }}</p>
-        <p class="affiliate-disclosure"><strong>Divulgación de afiliados:</strong> En calidad de Afiliado de Amazon, Homzy obtiene ingresos por las compras que cumplen los requisitos. Si compras mediante nuestros enlaces, podemos recibir una comisión sin coste adicional para ti.</p>
-        
+
         <div class="article-meta-row">
           <div class="meta-item">
             <CalendarIcon :size="16" />
@@ -40,11 +39,13 @@
             <ClockIcon :size="16" />
             <span>{{ readTime(article?.html) }} min de lectura</span>
           </div>
-          <div class="meta-item category-tag">
+          <div v-if="categoryName(article?.category_id)" class="meta-item category-tag">
             <TagIcon :size="16" />
             <span>{{ categoryName(article?.category_id) }}</span>
           </div>
         </div>
+
+        <p class="affiliate-disclosure">Como Afiliado de Amazon, podemos recibir una comisión por las compras realizadas a través de los enlaces de este análisis, sin coste adicional para ti.</p>
       </header>
       
       <div v-if="article?.image_url" class="article-featured-image">
@@ -55,6 +56,14 @@
     <div class="container">
       <div class="article-layout">
         <main class="article-main">
+          <nav v-if="toc.length >= 2" class="article-toc" aria-label="Índice de contenidos">
+            <div class="article-toc__title"><ListIcon :size="16" /> En este análisis</div>
+            <ol>
+              <li v-for="item in toc" :key="item.id">
+                <a :href="`#${item.id}`" @click.prevent="scrollToHeading(item.id)">{{ item.text }}</a>
+              </li>
+            </ol>
+          </nav>
           <div ref="articleContent" class="article-content-v3" v-html="article.html" @click="trackAffiliateClick"></div>
         </main>
         <aside class="article-sidebar">
@@ -126,9 +135,10 @@ import {
   CalendarIcon, 
   ClockIcon, 
   TagIcon, 
-  InfoIcon, 
+  InfoIcon,
   ArrowLeftIcon,
   UserIcon,
+  ListIcon,
 } from "lucide-vue-next";
 
 const route = useRoute();
@@ -139,6 +149,7 @@ const loading = ref(true);
 const notFound = ref(false);
 const error = ref("");
 const readingProgress = ref(0);
+const toc = ref([]);
 const email = ref("");
 const toast = useToastStore();
 let requestNumber = 0;
@@ -187,6 +198,7 @@ async function loadArticle(slug) {
   const currentRequest = ++requestNumber;
   clearMeta();
   article.value = null;
+  toc.value = [];
   loading.value = true;
   notFound.value = false;
   error.value = "";
@@ -196,8 +208,11 @@ async function loadArticle(slug) {
     if (currentRequest !== requestNumber) return;
     article.value = data;
     updateMeta(data);
+    // El contenido solo se monta cuando loading pasa a false; hay que hacerlo antes del nextTick.
+    loading.value = false;
     await nextTick();
     secureExternalLinks();
+    enhanceContent();
     updateProgress();
   } catch (requestError) {
     if (currentRequest !== requestNumber) return;
@@ -207,6 +222,52 @@ async function loadArticle(slug) {
   } finally {
     if (currentRequest === requestNumber) loading.value = false;
   }
+}
+
+function headingId(text) {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "") || "seccion";
+}
+
+function enhanceContent() {
+  const rootEl = articleContent.value;
+  if (!rootEl) return;
+
+  // La cabecera ya muestra el título; un h1 duplicado dentro del contenido sobra (SEO y lectura).
+  const contentH1 = rootEl.querySelector("h1");
+  if (contentH1 && article.value?.title && contentH1.textContent.trim().toLowerCase() === article.value.title.trim().toLowerCase()) {
+    contentH1.remove();
+  }
+
+  // Índice de contenidos a partir de los h2 del cuerpo (excluye el CTA de afiliado).
+  const seen = new Map();
+  toc.value = [...rootEl.querySelectorAll("h2")]
+    .filter((heading) => heading.textContent.trim() && !heading.closest(".affiliate-cta"))
+    .map((heading) => {
+      let id = headingId(heading.textContent.trim());
+      const count = seen.get(id) || 0;
+      seen.set(id, count + 1);
+      if (count) id = `${id}-${count + 1}`;
+      heading.id = id;
+      return { id, text: heading.textContent.trim() };
+    });
+
+  // Las tablas necesitan scroll horizontal propio en pantallas pequeñas.
+  rootEl.querySelectorAll("table").forEach((table) => {
+    if (table.parentElement?.classList.contains("table-wrap")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    table.parentNode.insertBefore(wrap, table);
+    wrap.appendChild(table);
+  });
+}
+
+function scrollToHeading(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function secureExternalLinks() {
@@ -309,6 +370,13 @@ onUnmounted(() => {
 
 <style scoped>
 .article-state { min-height: 55vh; display: grid; place-items: center; align-content: center; gap: 16px; text-align: center; }
-.affiliate-disclosure { max-width: 860px; margin: 0 auto 24px; padding: 14px 18px; border: 1px solid #fde68a; border-radius: var(--radius-md); background: #fffbeb; color: #78350f; font-size: 14px; line-height: 1.5; }
+.affiliate-disclosure {
+  max-width: 720px;
+  margin: 14px auto 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
 @media (max-width: 640px) { .affiliate-disclosure { text-align: left; } }
 </style>

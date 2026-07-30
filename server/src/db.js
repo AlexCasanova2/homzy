@@ -19,6 +19,9 @@ const REQUIRED_COLUMNS = {
     scheduled_at: "TEXT", image_url: "TEXT", seo_title: "TEXT", seo_keywords: "TEXT", canonical_url: "TEXT",
     is_featured: "INTEGER NOT NULL DEFAULT 0",
   },
+  products: {
+    description: "TEXT", details: "TEXT",
+  },
 };
 
 function migrateColumns(db) {

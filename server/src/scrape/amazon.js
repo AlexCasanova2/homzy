@@ -11,19 +11,32 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function extractImages($) {
+export function extractImages($) {
+  const seenIds = new Set();
+  const images = [];
+  const add = (url) => {
+    if (!url) return;
+    // Todas las variantes de tamaño comparten el mismo id; sin el modificador se obtiene la resolución completa.
+    const match = String(url).match(/\/images\/I\/([^._]+)[^/]*\.(jpg|jpeg|png|webp)/i);
+    if (!match) return;
+    const [, id, extension] = match;
+    if (seenIds.has(id)) return;
+    seenIds.add(id);
+    images.push(`https://m.media-amazon.com/images/I/${id}.${extension.toLowerCase()}`);
+  };
+
   const img = $("#imgTagWrapperId img");
   const data = img.attr("data-a-dynamic-image");
   if (data) {
     try {
-      const parsed = JSON.parse(data);
-      return Object.keys(parsed);
+      Object.keys(JSON.parse(data)).forEach(add);
     } catch {
-      return [];
+      // data-a-dynamic-image malformado: se sigue con el resto de fuentes.
     }
   }
-  const src = img.attr("src");
-  return src ? [src] : [];
+  add(img.attr("src"));
+  $("#altImages img").each((_, el) => add($(el).attr("src")));
+  return images;
 }
 
 function extractAsin($) {
@@ -56,6 +69,62 @@ export function parseAmazonUrl(value) {
   return url;
 }
 
+export function extractDescription($) {
+  const clean = (value) => value.replace(/\s+/g, " ").trim();
+  const description = clean($("#productDescription").text());
+  if (description) return description;
+  const bookDescription = clean($("#bookDescription_feature_div").text());
+  if (bookDescription) return bookDescription;
+
+  // A+ Content: quedarse solo con el texto real (títulos y párrafos), sin estilos.
+  const genericHeadings = new Set(["descripción del producto", "product description", "del fabricante", "from the manufacturer"]);
+  const aplus = $("#aplus_feature_div").clone();
+  aplus.find("style, script").remove();
+  const paragraphs = [];
+  aplus.find("h1, h2, h3, h4, p").each((_, el) => {
+    const text = clean($(el).text());
+    if (text.length >= 3 && !genericHeadings.has(text.toLowerCase())) paragraphs.push(text);
+  });
+  const joined = paragraphs.join("\n");
+  // Un A+ de solo imágenes no aporta texto útil.
+  return joined.length >= 40 ? joined : null;
+}
+
+export function extractDetails($) {
+  const details = {};
+  const cleanKey = (value) => value.replace(/[‎‏‏‎]/g, "").replace(/\s+/g, " ").replace(/:$/, "").trim();
+  const cleanValue = (value) => value.replace(/[‎‏‏‎]/g, "").replace(/\s+/g, " ").trim();
+
+  const addEntry = (key, value) => {
+    // Se descartan celdas anómalas (p. ej. bloques de opiniones incrustados en la tabla).
+    if (key && value && key.length <= 80 && value.length <= 300) details[key] = value;
+  };
+
+  // Tablas de especificaciones ("Información del producto", layouts técnico y combinado)
+  $("#productDetails_techSpec_section_1 tr, #productDetails_techSpec_section_2 tr, #productDetails_detailBullets_sections1 tr, #prodDetails table tr").each((_, el) => {
+    addEntry(cleanKey($(el).find("th").text()), cleanValue($(el).find("td").text()));
+  });
+
+  // Tabla resumen bajo el precio (product overview)
+  $("#productOverview_feature_div table tr").each((_, el) => {
+    const cells = $(el).find("td");
+    if (cells.length >= 2) {
+      addEntry(cleanKey($(cells[0]).text()), cleanValue($(cells[1]).text()));
+    }
+  });
+
+  // Lista de detalles (layout de bullets)
+  $("#detailBullets_feature_div li").each((_, el) => {
+    const text = cleanValue($(el).text());
+    const separator = text.indexOf(":");
+    if (separator > 0) {
+      addEntry(cleanKey(text.slice(0, separator)), text.slice(separator + 1).trim());
+    }
+  });
+
+  return Object.keys(details).length ? details : null;
+}
+
 function extractTitle($) {
   const title =
     $("#productTitle").text().trim() ||
@@ -75,8 +144,8 @@ export async function scrapeAmazonProduct(url) {
     headers: DEFAULT_HEADERS,
     timeout: 15000,
     maxRedirects: 3,
-    maxContentLength: 2 * 1024 * 1024,
-    maxBodyLength: 2 * 1024 * 1024,
+    maxContentLength: 8 * 1024 * 1024,
+    maxBodyLength: 8 * 1024 * 1024,
     beforeRedirect: (options) => {
       const auth = options.auth ? `${options.auth}@` : "";
       const port = options.port ? `:${options.port}` : "";
@@ -132,6 +201,8 @@ export async function scrapeAmazonProduct(url) {
     reviews,
     features,
     images,
+    description: extractDescription($),
+    details: extractDetails($),
     url,
   };
 }

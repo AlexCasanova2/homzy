@@ -25,11 +25,21 @@
           </RouterLink>
         </div>
 
-        <div v-if="categories.length === 0" class="text-center py-64">
+        <div v-if="loading" class="text-center py-64">
            <div class="spinner-container">
             <div class="spinner"></div>
           </div>
           <p class="mt-16 text-muted">Cargando categorías...</p>
+        </div>
+
+        <div v-else-if="loadError" class="text-center py-64">
+          <p class="text-muted">No pudimos cargar las categorías. Comprueba tu conexión e inténtalo de nuevo.</p>
+          <button class="retry-btn" @click="loadCategories">Reintentar</button>
+        </div>
+
+        <div v-else-if="categories.length === 0" class="text-center py-64">
+          <p class="text-muted">Todavía no hay categorías publicadas. Vuelve pronto para descubrir nuevos análisis.</p>
+          <RouterLink to="/" class="retry-btn">Volver al inicio</RouterLink>
         </div>
       </div>
     </section>
@@ -38,17 +48,25 @@
 
 <script setup>
 import { onMounted, ref } from "vue";
+import { RouterLink } from "vue-router";
 import { FolderIcon } from "lucide-vue-next";
 import api from "../api.js";
 
 const categories = ref([]);
+const loading = ref(true);
+const loadError = ref(false);
 
 async function loadCategories() {
+  loading.value = true;
+  loadError.value = false;
   try {
     const { data } = await api.get("/categories");
     categories.value = data;
   } catch (error) {
     console.error("Error loading categories:", error);
+    loadError.value = true;
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -136,4 +154,17 @@ onMounted(() => {
 .py-64 { padding: 64px 0; }
 .mt-16 { margin-top: 16px; }
 .text-center { text-align: center; }
+
+.retry-btn {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
 </style>

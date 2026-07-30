@@ -50,17 +50,18 @@
         <h3>Explora por Categoría</h3>
         <p>Análisis organizados para encontrar fácilmente lo que te interesa</p>
       </div>
-      <div class="category-row">
+      <div v-if="categories.length" class="category-row">
         <RouterLink v-for="(category, index) in categories" :key="category.id" :to="`/categoria/${category.slug}`"
-             class="category-card glass reveal" 
+             class="category-card glass reveal"
              :class="'delay-' + (index + 2)">
           <div class="category-icon">
             <component :is="getCategoryIcon(category.name)" :size="20" />
           </div>
           <h4>{{ category.name }}</h4>
-          <span>{{ categoryCount(category.id) }} artículos</span>
+          <span>{{ categoryCount(category.id) }} {{ categoryCount(category.id) === 1 ? "artículo" : "artículos" }}</span>
         </RouterLink>
       </div>
+      <p v-else class="empty-note">Estamos organizando las categorías. Muy pronto podrás explorar los análisis por temática.</p>
     </div>
   </section>
 
@@ -70,7 +71,10 @@
         <h3>Reseñas Recientes</h3>
         <p>Los últimos análisis publicados por nuestro equipo editorial</p>
       </div>
-      <div class="grid grid-3">
+      <p v-if="!articlesToShow.length" class="empty-note">
+        {{ articles.length ? "De momento este es nuestro único análisis publicado. Muy pronto habrá más reseñas." : "Aún no hay reseñas publicadas. Estamos preparando los primeros análisis: vuelve pronto." }}
+      </p>
+      <div v-else class="grid grid-3">
         <RouterLink
           v-for="(article, index) in articlesToShow"
           :key="article.id"

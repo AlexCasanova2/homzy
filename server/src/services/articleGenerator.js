@@ -14,6 +14,20 @@ function take(list, count) {
   return list.filter(Boolean).slice(0, count);
 }
 
+// Los títulos de Amazon suelen ser larguísimos ("X | Y,Z,5 en 1..."); para h1,
+// FAQ y meta conviene la parte descriptiva inicial. El título completo se
+// conserva en la tabla comparativa.
+function cleanKeyword(title) {
+  const base = String(title || "").split("|")[0].trim().replace(/[,;:\s]+$/, "");
+  return base || "Producto recomendado";
+}
+
+function truncate(value, max) {
+  const text = String(value || "").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1).replace(/[\s,.;:]+\S*$/, "")}…`;
+}
+
 function renderComparisonTable(primary, related) {
   const rows = [primary, ...related].slice(0, 3);
   return `
@@ -44,17 +58,49 @@ function renderComparisonTable(primary, related) {
 </table>`;
 }
 
+function renderSpecsTable(details, limit = 10) {
+  const entries = Object.entries(details || {}).slice(0, limit);
+  if (!entries.length) return "";
+  return `
+    <section>
+      <h2>Especificaciones principales</h2>
+      <table>
+        <tbody>
+          ${entries
+            .map(([key, value]) => `<tr><th scope="row">${escapeHtml(key)}</th><td>${escapeHtml(value)}</td></tr>`)
+            .join("\n")}
+        </tbody>
+      </table>
+    </section>`;
+}
+
 export function generateSeoArticle({ product, relatedProducts = [], affiliateLink, category }) {
-  const keyword = product.title || "Producto recomendado";
-  const title = `${keyword} - Opiniones, guía y mejores alternativas`;
-  const metaDescription = `Descubre si ${keyword} merece la pena. Comparativa, pros y contras, guía de compra y mejores alternativas.`;
+  const keyword = cleanKeyword(product.title);
+  const title = `${keyword}: opiniones y análisis`;
+  const metaDescription = truncate(
+    `Descubre si ${keyword} merece la pena: análisis, pros y contras, especificaciones y guía de compra.`,
+    160
+  );
 
   const features = Array.isArray(product.features) ? product.features : [];
-  const pros = take(features, 3);
-  const cons = take(features.slice(3), 3);
+  const pros = take(features, 5).map((feature) => truncate(feature, 180));
+  // Las características de Amazon siempre son elogios; no sirven como contras.
+  const cons = [
+    "Comprueba las medidas y el espacio disponible antes de comprar.",
+    "El precio y la disponibilidad pueden variar según el vendedor y el momento.",
+  ];
 
-  const topProducts = take([product, ...relatedProducts], 8);
-  const comparisonTable = renderComparisonTable({ ...product, affiliateUrl: affiliateLink }, relatedProducts);
+  const related = take(relatedProducts, 7);
+  const comparisonTable = renderComparisonTable({ ...product, affiliateUrl: affiliateLink }, related);
+  const specsTable = renderSpecsTable(product.details);
+  const brand = product.details?.Marca || product.details?.Fabricante || null;
+  const seoKeywords = [keyword, brand, category, "opiniones", "análisis", "comprar"]
+    .filter(Boolean)
+    .join(", ");
+
+  const introDescription = product.description
+    ? `<p>${escapeHtml(truncate(product.description, 400))}</p>`
+    : "";
 
   const link = affiliateLink;
   const slug = slugify(title);
@@ -70,39 +116,40 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
 <body>
   <article>
     <h1>${escapeHtml(title)}</h1>
-    <p><strong>Categoría:</strong> ${escapeHtml(category || "General")}</p>
+    ${category ? `<p><strong>Categoría:</strong> ${escapeHtml(category)}</p>` : ""}
 
     <section>
       <h2>Introducción</h2>
-      <p>Si estás buscando ${escapeHtml(keyword)}, aquí encontrarás un análisis completo con datos clave, ventajas reales y alternativas recomendadas.</p>
+      <p>Si estás buscando ${escapeHtml(keyword)}, aquí encontrarás un análisis completo con datos clave, ventajas reales y aspectos a tener en cuenta antes de comprar.</p>
+      ${introDescription}
     </section>
 
     <section>
       <h2>Comparativa rápida</h2>
       ${comparisonTable}
     </section>
-
+    ${specsTable}
+    ${
+      related.length
+        ? `
     <section>
-      <h2>Top productos destacados</h2>
+      <h2>Alternativas destacadas</h2>
       <ol>
-        ${topProducts
-      .map(
-        (item) => `
-        <li>${escapeHtml(item.title || "Producto")}</li>`
-      )
-      .join("\n")}
+        ${related.map((item) => `<li>${escapeHtml(item.title || "Producto")}</li>`).join("\n        ")}
       </ol>
-    </section>
+    </section>`
+        : ""
+    }
 
     <section>
       <h2>Pros y contras</h2>
       <h3>Pros</h3>
       <ul>
-        ${pros.length ? pros.map((p) => `<li>${escapeHtml(p)}</li>`).join("\n") : "<li>Calidad general destacable.</li>"}
+        ${pros.length ? pros.map((p) => `<li>${escapeHtml(p)}</li>`).join("\n        ") : "<li>Calidad general destacable.</li>"}
       </ul>
-      <h3>Contras</h3>
+      <h3>A tener en cuenta</h3>
       <ul>
-        ${cons.length ? cons.map((c) => `<li>${escapeHtml(c)}</li>`).join("\n") : "<li>Puede variar según disponibilidad.</li>"}
+        ${cons.map((c) => `<li>${escapeHtml(c)}</li>`).join("\n        ")}
       </ul>
     </section>
 
@@ -116,22 +163,16 @@ export function generateSeoArticle({ product, relatedProducts = [], affiliateLin
       <h3>¿Vale la pena ${escapeHtml(keyword)}?</h3>
       <p>Si buscas una opción equilibrada con buenas valoraciones y precio competitivo, es una opción sólida.</p>
       <h3>¿Qué alternativas existen?</h3>
-      <p>En la comparativa anterior verás opciones similares con distintos rangos de precio.</p>
+      <p>${
+        related.length
+          ? "En la comparativa anterior verás opciones similares con distintos rangos de precio."
+          : "Te recomendamos comparar con otros modelos de la misma categoría en cuanto a medidas, materiales y precio."
+      }</p>
     </section>
-
-    <section>
-      <h2>CTA</h2>
-      <p>Consulta el precio actual y disponibilidad aquí:</p>
-      <p><a href="${escapeHtml(link)}" rel="nofollow sponsored noopener" target="_blank">Comprar producto al mejor precio</a></p>
-    </section>
-
-    <footer>
-      <p>Slug sugerido: ${escapeHtml(slug)}</p>
-    </footer>
   </article>
 </body>
 </html>`;
-  return { html, seoTitle: title, metaDescription, slug };
+  return { html, seoTitle: title, metaDescription, slug, seoKeywords };
 }
 
 export async function generateArticleHtml({
