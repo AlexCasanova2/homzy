@@ -1,0 +1,17 @@
+{
+  "skill_name": "seo-articulo",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "Te paso el JSON de un producto que he importado en Homzy. Genera el artículo completo listo para pegarlo en el admin y publicarlo.",
+      "expected_output": "HTML con verdict-box, takeaways, comparativa, especificaciones, análisis H3, pros/contras, guía de compra, FAQ 5+ con datos reales, veredicto final, enlace /dp/ASIN, imágenes 1-2 con alt, + título/slug/meta/keywords",
+      "files": []
+    },
+    {
+      "id": 1,
+      "prompt": "Mejora este artículo de Homzy, está muy flojo y no posiciona.",
+      "expected_output": "Artículo reescrito con la arquitectura completa del sitio + resumen de cambios",
+      "files": []
+    }
+  ]
+}
