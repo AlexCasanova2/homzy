@@ -10,44 +10,46 @@
       </div>
       
       <nav class="admin-nav">
-        <RouterLink class="nav-item" :class="{ active: isActive('/admin') }" to="/admin">
+        <!-- Las etiquetas van en <span>: a ≤1024px la barra colapsa a solo iconos
+             ocultando `span:not(.nav-icon)`, y un nodo de texto suelto no se puede ocultar. -->
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin') }" to="/admin" title="Dashboard">
           <span class="nav-icon"><LayoutDashboardIcon :size="20" /></span>
-          Dashboard
+          <span>Dashboard</span>
         </RouterLink>
-        <RouterLink class="nav-item" :class="{ active: isActive('/admin/analytics') }" to="/admin/analytics">
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/analytics') }" to="/admin/analytics" title="Analitica">
           <span class="nav-icon"><BarChart3Icon :size="20" /></span>
-          Analitica
+          <span>Analitica</span>
         </RouterLink>
-        <RouterLink class="nav-item" :class="{ active: isActive('/admin/articles') }" to="/admin/articles">
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/articles') }" to="/admin/articles" title="Articulos">
           <span class="nav-icon"><FileTextIcon :size="20" /></span>
-          Articulos
+          <span>Articulos</span>
         </RouterLink>
-        <RouterLink class="nav-item" :class="{ active: isActive('/admin/products') }" to="/admin/products">
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/products') }" to="/admin/products" title="Productos">
           <span class="nav-icon"><PackageIcon :size="20" /></span>
-          Productos
+          <span>Productos</span>
         </RouterLink>
-        <RouterLink class="nav-item" :class="{ active: isActive('/admin/categories') }" to="/admin/categories">
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/categories') }" to="/admin/categories" title="Categorias">
           <span class="nav-icon"><FolderIcon :size="20" /></span>
-          Categorias
+          <span>Categorias</span>
         </RouterLink>
-        <RouterLink class="nav-item" :class="{ active: isActive('/admin/affiliates') }" to="/admin/affiliates">
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/affiliates') }" to="/admin/affiliates" title="Afiliados">
           <span class="nav-icon"><UsersIcon :size="20" /></span>
-          Afiliados
+          <span>Afiliados</span>
         </RouterLink>
-        <RouterLink class="nav-item" :class="{ active: isActive('/admin/newsletter') }" to="/admin/newsletter">
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/newsletter') }" to="/admin/newsletter" title="Newsletter">
           <span class="nav-icon"><MailIcon :size="20" /></span>
-          Newsletter
+          <span>Newsletter</span>
         </RouterLink>
       </nav>
 
       <div class="admin-footer">
-        <a class="nav-item secondary" href="/" target="_blank" rel="noopener">
+        <a class="nav-item secondary" href="/" target="_blank" rel="noopener" title="Ver Web Pública">
           <span class="nav-icon"><ExternalLinkIcon :size="18" /></span>
-          Ver Web Pública
+          <span>Ver Web Pública</span>
         </a>
-        <button class="nav-item secondary logout-btn" @click="handleLogout">
+        <button class="nav-item secondary logout-btn" @click="handleLogout" title="Cerrar Sesión">
           <span class="nav-icon"><LogOutIcon :size="18" /></span>
-          Cerrar Sesión
+          <span>Cerrar Sesión</span>
         </button>
         <div class="help-card card">
           <p>¿Necesitas ayuda?</p>

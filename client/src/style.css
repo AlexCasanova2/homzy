@@ -1371,6 +1371,23 @@ label {
   }
 }
 
+/* En móvil la barra de 80px más 40px de padding por lado dejaban ~215px de contenido
+   a 375px de ancho. Se estrecha la barra y se recorta el padding del área de trabajo. */
+@media (max-width: 640px) {
+  .admin-sidebar {
+    width: 64px;
+    padding: 20px 10px;
+  }
+
+  .admin-main {
+    margin-left: 64px;
+  }
+
+  .admin-scroll-area {
+    padding: 20px 14px;
+  }
+}
+
 /* Internal Article Pages */
 .reading-progress-container {
   position: fixed;
