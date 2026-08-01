@@ -32,10 +32,6 @@
           <span class="nav-icon"><FolderIcon :size="20" /></span>
           <span>Categorias</span>
         </RouterLink>
-        <RouterLink class="nav-item" :class="{ active: isActive('/admin/affiliates') }" to="/admin/affiliates" title="Afiliados">
-          <span class="nav-icon"><UsersIcon :size="20" /></span>
-          <span>Afiliados</span>
-        </RouterLink>
         <RouterLink class="nav-item" :class="{ active: isActive('/admin/newsletter') }" to="/admin/newsletter" title="Newsletter">
           <span class="nav-icon"><MailIcon :size="20" /></span>
           <span>Newsletter</span>
@@ -78,7 +74,6 @@ import {
   FileTextIcon,
   PackageIcon, 
   FolderIcon, 
-  UsersIcon, 
   ExternalLinkIcon,
   MailIcon,
   LogOutIcon
@@ -109,7 +104,6 @@ const currentPageTitle = computed(() => {
     '/admin/articles': 'Gestión de Artículos',
     '/admin/products': 'Catálogo de Productos',
     '/admin/categories': 'Taxonomías',
-    '/admin/affiliates': 'Redes de Afiliación',
     '/admin/newsletter': 'Gestión de Newsletter'
   };
   return map[route.path] || 'Admin';

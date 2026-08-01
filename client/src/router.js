@@ -10,7 +10,6 @@ import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage.vue";
 import AdminProductsPage from "./pages/admin/AdminProductsPage.vue";
 import AdminArticlesPage from "./pages/admin/AdminArticlesPage.vue";
 import AdminCategoriesPage from "./pages/admin/AdminCategoriesPage.vue";
-import AdminAffiliatesPage from "./pages/admin/AdminAffiliatesPage.vue";
 import AdminNewsletterPage from "./pages/admin/AdminNewsletterPage.vue";
 import LegalPage from "./pages/LegalPage.vue";
 import NotFoundPage from "./pages/NotFoundPage.vue";
@@ -38,7 +37,6 @@ const routes = [
       { path: "products", component: AdminProductsPage },
       { path: "articles", component: AdminArticlesPage },
       { path: "categories", component: AdminCategoriesPage },
-      { path: "affiliates", component: AdminAffiliatesPage },
       { path: "newsletter", component: AdminNewsletterPage },
     ],
   },
