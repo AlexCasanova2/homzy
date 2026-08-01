@@ -166,6 +166,14 @@ app.post("/api/metrics/track", metricsLimiter, ah(async (req, res) => {
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid event" });
 
+  // Ruido de gestión, no audiencia: navegación que sale del propio panel de admin
+  // (previsualizar artículos, "Ver Web Pública") o de un entorno local. Se acepta con
+  // 204 pero no se registra, para que la analítica solo cuente lectores reales.
+  const referrer = parsed.data.referrer || "";
+  if (/\/admin($|[/?#])|^https?:\/\/(localhost|127\.0\.0\.1)([:/]|$)/i.test(referrer)) {
+    return res.status(204).end();
+  }
+
   await query(
     "INSERT INTO page_events (id, type, path, article_id, context, referrer, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
     [
