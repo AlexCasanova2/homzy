@@ -265,7 +265,9 @@ onMounted(load);
 
 .admin-panels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  /* min(340px, 100%): con menos de 340px disponibles la columna se adapta al ancho
+     real en vez de forzar 340px y desbordar el viewport en móvil. */
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
   gap: 24px;
 }
 
@@ -407,6 +409,16 @@ onMounted(load);
 
 .span-2 {
   grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .span-2 {
+    grid-column: span 1;
+  }
 }
 
 .modal-footer {

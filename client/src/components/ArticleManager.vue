@@ -15,7 +15,7 @@
       </div>
 
       <div class="table-responsive">
-        <table class="table">
+        <table class="table table--stack">
           <thead>
             <tr>
               <th>Título</th>
@@ -25,8 +25,8 @@
           </thead>
           <tbody>
             <tr v-for="article in pagedArticles" :key="article.id">
-              <td class="font-bold">{{ article.title }}</td>
-              <td>
+              <td class="font-bold cell-primary">{{ article.title }}</td>
+              <td data-label="Estado">
                 <span class="status-badge" :class="article.status">
                   {{ article.status }}
                 </span>

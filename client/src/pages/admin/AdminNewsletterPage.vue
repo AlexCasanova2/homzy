@@ -19,7 +19,7 @@
       </div>
 
       <div class="table-responsive">
-        <table class="table">
+        <table class="table table--stack">
           <thead>
             <tr>
               <th>ID</th>
@@ -30,9 +30,9 @@
           </thead>
           <tbody>
             <tr v-for="sub in subscribers" :key="sub.id">
-              <td class="text-muted text-xs">{{ sub.id }}</td>
-              <td class="font-bold">{{ sub.email }}</td>
-              <td>{{ formatDate(sub.created_at) }}</td>
+              <td class="text-muted text-xs" data-label="ID">{{ sub.id }}</td>
+              <td class="font-bold cell-primary">{{ sub.email }}</td>
+              <td data-label="Fecha">{{ formatDate(sub.created_at) }}</td>
               <td class="text-right">
                 <button class="danger small" title="Eliminar (No implementado)">
                    <Trash2Icon :size="14" />
@@ -120,6 +120,7 @@ onMounted(loadSubscribers);
 .section-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 24px;
 }

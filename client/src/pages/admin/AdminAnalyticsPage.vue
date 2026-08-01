@@ -87,21 +87,23 @@
               <h4>Origen del tráfico</h4>
             </div>
           </div>
-          <table v-if="metrics.byReferrer.length" class="table">
-            <thead>
-              <tr><th>Fuente</th><th class="text-right">Visitas</th><th class="text-right">%</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in referrers" :key="row.source">
-                <td class="truncate">
-                  {{ row.label }}
-                  <small v-if="row.internal" class="text-muted">· no es tráfico nuevo</small>
-                </td>
-                <td class="text-right">{{ formatNumber(row.views) }}</td>
-                <td class="text-right text-muted">{{ share(row.views, metrics.totals.views) }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div v-if="metrics.byReferrer.length" class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr><th>Fuente</th><th class="text-right">Visitas</th><th class="text-right">%</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in referrers" :key="row.source">
+                  <td class="truncate">
+                    {{ row.label }}
+                    <small v-if="row.internal" class="text-muted">· no es tráfico nuevo</small>
+                  </td>
+                  <td class="text-right">{{ formatNumber(row.views) }}</td>
+                  <td class="text-right text-muted">{{ share(row.views, metrics.totals.views) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p v-else class="text-muted metrics-empty">Sin datos de origen todavía.</p>
         </section>
 
@@ -113,18 +115,20 @@
               <h4>Clics por CTA</h4>
             </div>
           </div>
-          <table v-if="metrics.byContext.length" class="table">
-            <thead>
-              <tr><th>Contexto</th><th class="text-right">Clics</th><th class="text-right">%</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in metrics.byContext" :key="row.context">
-                <td class="truncate">{{ row.context }}</td>
-                <td class="text-right">{{ formatNumber(row.clicks) }}</td>
-                <td class="text-right text-muted">{{ share(row.clicks, metrics.totals.clicks) }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div v-if="metrics.byContext.length" class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr><th>Contexto</th><th class="text-right">Clics</th><th class="text-right">%</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in metrics.byContext" :key="row.context">
+                  <td class="truncate">{{ row.context }}</td>
+                  <td class="text-right">{{ formatNumber(row.clicks) }}</td>
+                  <td class="text-right text-muted">{{ share(row.clicks, metrics.totals.clicks) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p v-else class="text-muted metrics-empty">Sin clics de afiliado registrados en este periodo.</p>
         </section>
       </div>
@@ -470,7 +474,9 @@ onMounted(() => load(30));
 
 .panel-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr): con 1fr a secas el mínimo implícito es el contenido, y una celda
+     nowrap de la tabla impedía a la columna encoger, desbordando la página en móvil. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
 }
 
@@ -499,12 +505,31 @@ onMounted(() => load(30));
 
 @media (max-width: 1024px) {
   .metrics-totals { grid-template-columns: repeat(2, 1fr); }
-  .panel-grid { grid-template-columns: 1fr; }
+  .panel-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 640px) {
   .metrics-totals { grid-template-columns: 1fr; }
   .page-header { flex-direction: column; align-items: flex-start; }
-  .truncate { max-width: 200px; }
+
+  /* Layout fijo: la primera columna absorbe el espacio y recorta con elipsis
+     (en layout automático max-width sobre un td se ignora y la tabla desbordaba).
+     Así las cuatro tablas caben sin scroll horizontal. */
+  .panel .table {
+    table-layout: fixed;
+  }
+
+  .panel .table th:first-child {
+    width: 45%;
+  }
+
+  .panel .table th,
+  .panel .table td {
+    padding: 10px 8px;
+  }
+
+  .truncate {
+    max-width: none;
+  }
 }
 </style>

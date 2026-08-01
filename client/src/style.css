@@ -310,6 +310,13 @@ label {
   border: 1px solid var(--border);
 }
 
+/* Los listados del admin envuelven sus tablas en esta clase; sin ella una tabla
+   ancha desborda la página entera en vez de scrollear dentro de su contenedor. */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .table {
   width: 100%;
   border-collapse: separate;
@@ -341,6 +348,70 @@ label {
 
 .table tr:hover td {
   background: rgba(176, 85, 47, 0.02);
+}
+
+/* Tablas apiladas: en móvil cada fila se convierte en una tarjeta vertical y el
+   contenido se ve entero sin scroll horizontal. Las celdas anotan su columna con
+   data-label; la celda .cell-primary hace de titular de la tarjeta. */
+@media (max-width: 640px) {
+  .table--stack,
+  .table--stack tbody {
+    display: block;
+  }
+
+  .table--stack thead {
+    display: none;
+  }
+
+  .table--stack tr {
+    display: flex;
+    flex-direction: column;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: #fff;
+  }
+
+  .table--stack tr:hover td {
+    background: transparent;
+  }
+
+  .table--stack td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 0;
+    border-bottom: 0;
+    text-align: left;
+  }
+
+  .table--stack td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .table--stack .cell-primary {
+    order: -1;
+    display: block;
+    padding-bottom: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  /* Dentro de una tarjeta las filas de botones envuelven en vez de forzar el ancho. */
+  .table--stack .row-actions,
+  .table--stack .action-buttons {
+    flex-wrap: wrap;
+  }
 }
 
 .site-main {
@@ -1290,6 +1361,9 @@ label {
 
 .admin-main {
   flex: 1;
+  /* Sin esto el flex-item no encoge por debajo de su contenido: una tabla ancha
+     estira toda la página en vez de scrollear dentro de .table-responsive. */
+  min-width: 0;
   margin-left: 280px;
   display: flex;
   flex-direction: column;
@@ -1371,20 +1445,49 @@ label {
   }
 }
 
-/* En móvil la barra de 80px más 40px de padding por lado dejaban ~215px de contenido
-   a 375px de ancho. Se estrecha la barra y se recorta el padding del área de trabajo. */
+/* En móvil la barra lateral pasa a barra inferior (patrón app): el contenido recupera
+   el ancho completo en vez de perder 64-80px en un raíl de iconos vertical. */
 @media (max-width: 640px) {
   .admin-sidebar {
-    width: 64px;
-    padding: 20px 10px;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    border-right: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .admin-brand {
+    display: none;
+  }
+
+  .admin-nav {
+    flex-direction: row;
+    justify-content: space-around;
+    gap: 0;
+  }
+
+  .admin-footer {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 0;
+    gap: 0;
+  }
+
+  .nav-item {
+    padding: 10px 8px;
   }
 
   .admin-main {
-    margin-left: 64px;
+    margin-left: 0;
   }
 
+  /* Aire inferior para que la barra no tape el final de las tablas y formularios. */
   .admin-scroll-area {
-    padding: 20px 14px;
+    padding: 20px 16px calc(76px + env(safe-area-inset-bottom));
   }
 }
 

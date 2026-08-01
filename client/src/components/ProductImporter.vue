@@ -77,7 +77,7 @@
       <div v-if="isLoading" class="inline-loading" aria-live="polite"><div class="spinner"></div><span>Cargando catálogo...</span></div>
       <p v-else-if="loadError" class="inline-error" role="alert">{{ loadError }} <button class="secondary small" @click="loadInitialData">Reintentar</button></p>
       <div v-else class="table-responsive">
-        <table class="table">
+        <table class="table table--stack">
           <thead>
             <tr>
               <th>ASIN</th>
@@ -89,10 +89,13 @@
           </thead>
           <tbody>
             <tr v-for="product in pagedProducts" :key="product.id">
-              <td><code class="asin-code">{{ product.asin }}</code></td>
-              <td class="product-title-cell">{{ product.title }}</td>
-              <td class="font-bold">{{ product.price || '-' }}</td>
-              <td>
+              <td data-label="ASIN"><code class="asin-code">{{ product.asin }}</code></td>
+              <!-- El recorte con elipsis va en un span interior: max-width sobre un <td>
+                   no se aplica en el layout automático de tablas y el título largo
+                   inflaba la tabla (medido: 1329px de celda). -->
+              <td class="product-title-cell cell-primary" :title="product.title"><span class="product-title-text">{{ product.title }}</span></td>
+              <td class="font-bold" data-label="Precio">{{ product.price || '-' }}</td>
+              <td data-label="Rating">
                 <span v-if="product.rating" class="rating-badge">
                   <StarIcon :size="12" class="mr-4" /> {{ product.rating }}
                 </span>
@@ -107,8 +110,8 @@
                     :title="`Editar artículo: ${product.article.title}`"
                   >
                     <div class="flex-center">
-                      <FileTextIcon :size="14" class="mr-8" />
-                      Artículo
+                      <FileTextIcon :size="14" />
+                      <span class="btn-label">Artículo</span>
                     </div>
                   </button>
                   <button
@@ -121,20 +124,26 @@
                   </button>
                   <button class="secondary small" @click="copyProductData(product)" title="Copiar datos del producto (JSON) para redacción externa">
                     <div class="flex-center">
-                      <CopyIcon :size="14" class="mr-8" />
-                      Copiar datos
+                      <CopyIcon :size="14" />
+                      <span class="btn-label">Copiar datos</span>
                     </div>
                   </button>
                   <button class="secondary small" @click="reimportProduct(product)" :disabled="reimportingId === product.id" title="Actualizar datos desde Amazon">
                     <div class="flex-center">
-                      <RefreshCwIcon :size="14" class="mr-8" />
-                      {{ reimportingId === product.id ? "Actualizando..." : "Reimportar" }}
+                      <RefreshCwIcon :size="14" />
+                      <!-- btn-label--state: el texto de progreso sigue visible en móvil aunque
+                           las etiquetas normales se oculten. -->
+                      <span class="btn-label" :class="{ 'btn-label--state': reimportingId === product.id }">
+                        {{ reimportingId === product.id ? "Actualizando..." : "Reimportar" }}
+                      </span>
                     </div>
                   </button>
-                  <button class="secondary small" @click="generateArticle(product)" :disabled="isGenerating">
+                  <button class="secondary small" @click="generateArticle(product)" :disabled="isGenerating" title="Generar artículo con IA">
                     <div class="flex-center">
-                      <SparklesIcon :size="14" class="mr-8" />
-                      {{ generatingId === product.id ? "Generando..." : "Generar artículo" }}
+                      <SparklesIcon :size="14" />
+                      <span class="btn-label" :class="{ 'btn-label--state': generatingId === product.id }">
+                        {{ generatingId === product.id ? "Generando..." : "Generar artículo" }}
+                      </span>
                     </div>
                   </button>
                   <button class="danger small" @click="removeProduct(product)" title="Eliminar producto">
@@ -193,8 +202,17 @@
 .text-right { text-align: right; }
 .text-center { text-align: center; }
 .font-bold { font-weight: 700; }
-.flex-center { display: flex; align-items: center; justify-content: center; }
-.row-actions { display: inline-flex; gap: 8px; }
+.flex-center { display: flex; align-items: center; justify-content: center; gap: 8px; }
+/* En una sola fila siempre: si no cabe, scrollea .table-responsive. Apilarlos en
+   vertical hacía filas altísimas. */
+.row-actions { display: inline-flex; gap: 8px; white-space: nowrap; }
+
+/* Acciones solo-icono a cualquier ancho: con etiquetas la fila medía 1287px y ni en
+   escritorio cabía sin scroll. El title de cada botón describe la acción y el texto
+   de estado ("Generando...", "Actualizando...") sí se muestra mientras dura. */
+.btn-label:not(.btn-label--state) {
+  display: none;
+}
 
 .new-category-box {
   margin-top: 12px;
@@ -275,11 +293,36 @@
 }
 
 .product-title-cell {
+  font-weight: 500;
+}
+
+.product-title-text {
+  display: block;
   max-width: 300px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 500;
+}
+
+/* El hover (title del td) muestra el nombre completo cuando el recorte aprieta. */
+@media (max-width: 1440px) {
+  .product-title-text {
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 760px) {
+  .product-title-text {
+    max-width: 160px;
+  }
+}
+
+/* En modo tarjeta (tabla apilada) el título se muestra entero, envolviendo. */
+@media (max-width: 640px) {
+  .product-title-text {
+    max-width: none;
+    white-space: normal;
+  }
 }
 
 .rating-badge {
