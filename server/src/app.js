@@ -22,6 +22,7 @@ import { resolveLlmConfig } from "./services/llmClient.js";
 import { getRelatedProducts } from "./services/relatedProducts.js";
 import { createAuthMiddleware } from "./auth.js";
 import { resolveAffiliateUrl, validateAffiliateUrl } from "./services/affiliate.js";
+import * as cheerio from "cheerio";
 import { hasAffiliateLinkForAsin, prepareGeneratedArticleHtml, sanitizeArticleHtml } from "./services/articleHtml.js";
 import { DEFAULT_DESCRIPTION, SITE_NAME, escapeHtml, renderShell, siteOrigin } from "./services/seoMeta.js";
 
@@ -979,9 +980,39 @@ async function sendShell(req, res, meta) {
   }
 }
 
+function parsePriceEuro(value) {
+  const match = String(value || "").replace(/\./g, "").match(/(\d+),?(\d{0,2})/);
+  if (!match) return null;
+  return Number(`${match[1]}.${match[2] || "0"}`);
+}
+
+// FAQ desde los pares h3+p de la sección "Preguntas frecuentes": misma lógica que el
+// cliente, para que el bloque servido y el hidratado sean equivalentes.
+function extractFaq($) {
+  const heading = $("h2")
+    .filter((_, el) => /preguntas frecuentes|faq/i.test($(el).text()))
+    .first();
+  const section = heading.closest("section");
+  if (!section.length) return [];
+  return section
+    .find("h3")
+    .map((_, h3) => {
+      let answer = "";
+      let node = $(h3).next();
+      while (node.length && node.is("p")) {
+        answer += ` ${node.text()}`;
+        node = node.next();
+      }
+      return { q: $(h3).text().trim(), a: answer.trim() };
+    })
+    .get()
+    .filter((item) => item.q && item.a);
+}
+
 app.get("/analisis/:slug", ah(async (req, res) => {
   const article = await one(
-    `SELECT title, slug, seo_title, meta_description, seo_keywords, canonical_url, image_url
+    `SELECT id, title, slug, seo_title, meta_description, seo_keywords, canonical_url,
+            image_url, html, category_id, product_id
      FROM articles WHERE slug = $1 AND status = 'published'`,
     [req.params.slug]
   );
@@ -995,18 +1026,118 @@ app.get("/analisis/:slug", ah(async (req, res) => {
     });
   }
 
+  const canonical = article.canonical_url || `${origin}/analisis/${article.slug}`;
+  const description = truncate(article.meta_description) || DEFAULT_DESCRIPTION;
+  const cleanHtml = sanitizeArticleHtml(article.html || "");
+
+  // Cadena de categorías de la hoja a la raíz, para migas y BreadcrumbList.
+  const chain = article.category_id
+    ? await all(
+        `WITH RECURSIVE up AS (
+           SELECT id, name, slug, parent_id, 1 AS depth FROM categories WHERE id = $1
+           UNION ALL
+           SELECT c.id, c.name, c.slug, c.parent_id, up.depth + 1
+           FROM categories c JOIN up ON c.id = up.parent_id
+           WHERE up.depth < 10
+         )
+         SELECT name, slug FROM up ORDER BY depth DESC`,
+        [article.category_id]
+      )
+    : [];
+
+  const product = article.product_id
+    ? await one("SELECT title, price, rating, reviews, images FROM products WHERE id = $1", [article.product_id])
+    : null;
+
+  const jsonLd = [];
+  if (product) {
+    const price = parsePriceEuro(product.price);
+    const images = safeJsonParse(product.images, []);
+    jsonLd.push({
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: product.title,
+      image: (images.length ? images : [article.image_url]).filter(Boolean).slice(0, 5),
+      ...(article.meta_description ? { description: article.meta_description } : {}),
+      ...(product.rating && product.reviews
+        ? { aggregateRating: { "@type": "AggregateRating", ratingValue: product.rating, reviewCount: product.reviews, bestRating: 5 } }
+        : {}),
+      ...(price
+        ? { offers: { "@type": "Offer", price, priceCurrency: "EUR", availability: "https://schema.org/InStock", url: canonical } }
+        : {}),
+    });
+  }
+
+  const $ = cheerio.load(cleanHtml);
+  const faq = extractFaq($);
+  if (faq.length >= 2) {
+    jsonLd.push({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: faq.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: { "@type": "Answer", text: item.a },
+      })),
+    });
+  }
+
+  if (chain.length) {
+    jsonLd.push({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Inicio", item: `${origin}/` },
+        ...chain.map((cat, index) => ({
+          "@type": "ListItem",
+          position: index + 2,
+          name: cat.name,
+          item: `${origin}/categoria/${cat.slug}`,
+        })),
+        { "@type": "ListItem", position: chain.length + 2, name: article.title, item: canonical },
+      ],
+    });
+  }
+
+  // Cuerpo pre-renderizado con las clases reales de la página (los estilos son
+  // globales). Sin la clase de animación "reveal": nacería invisible sin JS.
+  const crumbs = [
+    `<a href="/">Inicio</a>`,
+    ...chain.map((cat) => `<a href="/categoria/${escapeHtml(cat.slug)}">${escapeHtml(cat.name)}</a>`),
+  ].join(" › ");
+
+  const appHtml = `
+    <section class="section article-hero-section">
+      <div class="container">
+        <nav class="breadcrumbs">${crumbs}</nav>
+        <header class="article-header">
+          <h1 class="article-title">${escapeHtml(article.title)}</h1>
+          ${article.meta_description ? `<p class="article-subtitle">${escapeHtml(article.meta_description)}</p>` : ""}
+          <p class="affiliate-disclosure">Como Afiliado de Amazon, podemos recibir una comisión por las compras realizadas a través de los enlaces de este análisis, sin coste adicional para ti.</p>
+        </header>
+        ${article.image_url ? `<div class="article-featured-image"><img src="${escapeHtml(article.image_url)}" alt="${escapeHtml(article.title)}" /></div>` : ""}
+      </div>
+      <div class="container">
+        <main class="article-main">
+          <div class="article-content-v3">${cleanHtml}</div>
+        </main>
+      </div>
+    </section>`;
+
   await sendShell(req, res, {
     title: article.seo_title || `${article.title} | ${SITE_NAME}`,
-    description: truncate(article.meta_description) || DEFAULT_DESCRIPTION,
+    description,
     keywords: article.seo_keywords || "",
-    canonical: article.canonical_url || `${origin}/analisis/${article.slug}`,
+    canonical,
     image: article.image_url || "",
     type: "article",
+    jsonLd,
+    appHtml,
   });
 }));
 
 app.get("/categoria/:slug", ah(async (req, res) => {
-  const category = await one("SELECT name, slug FROM categories WHERE slug = $1", [req.params.slug]);
+  const category = await one("SELECT id, name, slug FROM categories WHERE slug = $1", [req.params.slug]);
   const origin = siteOrigin(req);
 
   if (!category) {
@@ -1017,18 +1148,68 @@ app.get("/categoria/:slug", ah(async (req, res) => {
     });
   }
 
+  // Lista servida de artículos: enlaces internos que el crawler lee sin ejecutar JS.
+  const articles = await all(
+    `SELECT DISTINCT a.slug, a.title, a.meta_description, coalesce(a.published_at, a.created_at) AS pub
+     FROM articles a
+     LEFT JOIN article_categories ac ON ac.article_id = a.id
+     WHERE a.status = 'published' AND (a.category_id = $1 OR ac.category_id = $1)
+     ORDER BY pub DESC
+     LIMIT 100`,
+    [category.id]
+  );
+
+  const items = articles
+    .map(
+      (a) => `<li>
+        <a href="/analisis/${escapeHtml(a.slug)}">${escapeHtml(a.title)}</a>
+        ${a.meta_description ? `<p>${escapeHtml(truncate(a.meta_description))}</p>` : ""}
+      </li>`
+    )
+    .join("\n");
+
+  const appHtml = `
+    <section class="section">
+      <div class="container">
+        <nav class="breadcrumbs"><a href="/">Inicio</a> › <a href="/categorias">Categorías</a></nav>
+        <h1>${escapeHtml(category.name)}: análisis y opiniones</h1>
+        ${items ? `<ul>${items}</ul>` : `<p>Aún no hay análisis publicados en esta categoría.</p>`}
+      </div>
+    </section>`;
+
   await sendShell(req, res, {
     title: `${category.name}: análisis y opiniones | ${SITE_NAME}`,
     description: `Todos nuestros análisis de ${category.name.toLowerCase()}: especificaciones, pros, contras y para quién es cada producto.`,
     canonical: `${origin}/categoria/${category.slug}`,
+    appHtml,
   });
 }));
 
 app.get("/categorias", ah(async (req, res) => {
+  // Solo categorías con artículos publicados, igual que el sitemap.
+  const categories = await all(
+    `SELECT DISTINCT c.name, c.slug
+     FROM categories c
+     JOIN article_categories ac ON ac.category_id = c.id
+     JOIN articles a ON a.id = ac.article_id AND a.status = 'published'
+     ORDER BY c.name`
+  );
+
+  const appHtml = `
+    <section class="section">
+      <div class="container">
+        <h1>Categorías</h1>
+        <ul>
+          ${categories.map((c) => `<li><a href="/categoria/${escapeHtml(c.slug)}">${escapeHtml(c.name)}</a></li>`).join("\n          ")}
+        </ul>
+      </div>
+    </section>`;
+
   await sendShell(req, res, {
     title: `Categorías | ${SITE_NAME}`,
     description: "Explora todos los análisis de Homzy organizados por categoría.",
     canonical: `${siteOrigin(req)}/categorias`,
+    appHtml,
   });
 }));
 

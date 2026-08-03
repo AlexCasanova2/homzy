@@ -65,7 +65,14 @@ function metaTag(attribute, key, content) {
 
 /**
  * Devuelve el index.html con las metas de la página inyectadas en el <head>.
- * meta: { title, description, canonical, image, type, keywords, robots }
+ * meta: { title, description, canonical, image, type, keywords, robots,
+ *         jsonLd: object[],   // bloques schema.org, marcados para que el cliente los sustituya
+ *         appHtml: string }   // contenido pre-renderizado dentro de <div id="app">
+ *
+ * appHtml existe porque la SPA monta el cuerpo por JavaScript: sin él, los crawlers
+ * que no ejecutan JS ven una página vacía y Google indexa tarde y peor. Vue reemplaza
+ * el contenido de #app al montar, así que no hay conflicto de hidratación: el estático
+ * sirve para el crawler y para el primer pintado, y la app toma el relevo.
  */
 export async function renderShell(req, meta = {}) {
   const shell = await loadShell(req);
@@ -92,6 +99,12 @@ export async function renderShell(req, meta = {}) {
     meta.canonical
       ? `<link rel="canonical" href="${escapeHtml(meta.canonical)}" data-homzy-article-meta="true" />`
       : "",
+    // JSON-LD con el mismo marcador que usa el cliente: clearMeta() lo retira al
+    // hidratar y la app escribe el suyo, así que nunca hay bloques duplicados.
+    ...(meta.jsonLd || []).map(
+      (block) =>
+        `<script type="application/ld+json" data-homzy-article-meta="true">${JSON.stringify(block).replace(/</g, "\\u003c")}</script>`
+    ),
   ]
     .filter(Boolean)
     .join("\n    ");
@@ -105,9 +118,17 @@ export async function renderShell(req, meta = {}) {
     .replace(/[ \t]*<meta\s+name="twitter:[^"]*"[^>]*>\s*\n?/gi, "")
     .replace(/[ \t]*<link\s+rel="canonical"[^>]*>\s*\n?/gi, "");
 
-  return stripped
+  let page = stripped
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
     .replace("</head>", `  ${tags}\n  </head>`);
+
+  if (meta.appHtml) {
+    // Función como reemplazo: el contenido puede llevar "$&" y secuencias que
+    // String.replace interpretaría como referencias del patrón.
+    page = page.replace(/<div id="app">\s*<\/div>/, () => `<div id="app">${meta.appHtml}</div>`);
+  }
+
+  return page;
 }
 
 export { SITE_NAME, DEFAULT_DESCRIPTION };
