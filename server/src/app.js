@@ -37,7 +37,10 @@ export const app = express();
 const llmConfig = resolveLlmConfig();
 const { authenticate, optionalAuthenticate } = createAuthMiddleware(JWT_SECRET);
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
-const importLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
+// 10 era demasiado bajo para cargar un lote de catálogo: los intentos fallidos también
+// consumen cuota y bastaba una tanda de importaciones para bloquearse 15 minutos. El
+// freno real frente a Amazon no es este contador sino la espera del propio scraper.
+const importLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false });
 const generationLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
 const newsletterLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
 const metricsLimiter = rateLimit({ windowMs: 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false });
