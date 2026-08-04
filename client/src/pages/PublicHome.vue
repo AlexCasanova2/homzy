@@ -25,25 +25,54 @@
         <button class="search-btn" type="submit" aria-label="Buscar"><SearchIcon :size="20" /></button>
       </form>
 
-      <!-- Accesos directos a las categorías que ya tienen análisis publicados. -->
-      <nav v-if="heroCategories.length" class="hero-chips" aria-label="Categorías destacadas">
-        <RouterLink v-for="category in heroCategories" :key="category.id" class="hero-chip" :to="`/categoria/${category.slug}`">
-          {{ category.name }}
-          <span class="hero-chip__count">{{ category.count }}</span>
-        </RouterLink>
-        <RouterLink class="hero-chip hero-chip--all" to="/categorias">
-          Ver todas
-          <ArrowRightIcon :size="13" />
-        </RouterLink>
+      <!-- Accesos directos a las categorías que ya tienen análisis publicados.
+           Mientras la API responde se pintan esqueletos del mismo tamaño: si el bloque
+           aparece de golpe tras la primera pintada, empuja todo lo de abajo y dispara
+           el CLS (medido: 0,409 en PageSpeed, con este patrón como causa). -->
+      <nav v-if="loading || heroCategories.length" class="hero-chips" aria-label="Categorías destacadas">
+        <template v-if="loading">
+          <span v-for="n in 5" :key="n" class="hero-chip skeleton-chip" aria-hidden="true"></span>
+        </template>
+        <template v-else>
+          <RouterLink v-for="category in heroCategories" :key="category.id" class="hero-chip" :to="`/categoria/${category.slug}`">
+            {{ category.name }}
+            <span class="hero-chip__count">{{ category.count }}</span>
+          </RouterLink>
+          <RouterLink class="hero-chip hero-chip--all" to="/categorias">
+            Ver todas
+            <ArrowRightIcon :size="13" />
+          </RouterLink>
+        </template>
       </nav>
 
     </div>
   </section>
 
-  <!-- Featured Section -->
-  <section v-if="featuredArticle" class="section reveal delay-1" style="padding-top: 0">
+  <!-- Featured Section: mientras carga se reserva el hueco con un esqueleto de la misma
+       estructura. Esta tarjeta (~800px en móvil) insertándose tras la primera pintada era
+       el principal empujón sobre #categorias. -->
+  <section v-if="loading || featuredArticle" class="section reveal delay-1" style="padding-top: 0">
     <div class="container">
-      <RouterLink class="featured-card glass card--hover" :to="`/analisis/${featuredArticle.slug}`">
+      <!-- Mismos elementos y clases que la tarjeta real con texto invisible (.skeleton-text):
+           así la altura reservada coincide en cualquier viewport sin fijar píxeles. -->
+      <div v-if="loading" class="featured-card glass" aria-hidden="true">
+        <div class="featured-grid">
+          <div class="featured-thumb skeleton-block"></div>
+          <div class="featured-info">
+            <span class="category-chip skeleton-text">Categoría</span>
+            <h3 class="skeleton-text">Título del análisis destacado que ocupa aproximadamente dos líneas completas de espacio</h3>
+            <p class="skeleton-text">Resumen del análisis destacado con la extensión habitual de una meta description completa, alrededor de los ciento cuarenta caracteres de texto corrido.</p>
+            <div class="featured-footer">
+              <div class="user-meta">
+                <div class="avatar-mini skeleton-block"></div>
+                <span class="skeleton-text">Por Equipo Homzy</span>
+              </div>
+              <span class="btn-primary-slim skeleton-text">Leer análisis completo</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <RouterLink v-else class="featured-card glass card--hover" :to="`/analisis/${featuredArticle.slug}`">
         <div class="featured-badge">Nueva Reseña Destacada</div>
         <div class="featured-grid">
           <div class="featured-thumb" :style="getThumbStyle(featuredArticle.id)">
@@ -73,7 +102,14 @@
         <h3>Explora por Categoría</h3>
         <p>Análisis organizados para encontrar fácilmente lo que te interesa</p>
       </div>
-      <div v-if="rootCategories.length" class="category-row">
+      <div v-if="loading" class="category-row" aria-hidden="true">
+        <div v-for="n in 8" :key="n" class="category-card glass">
+          <div class="category-icon skeleton-block"></div>
+          <h4 class="skeleton-text">Categoría</h4>
+          <span class="skeleton-text">0 artículos</span>
+        </div>
+      </div>
+      <div v-else-if="rootCategories.length" class="category-row">
         <RouterLink v-for="(category, index) in rootCategories" :key="category.id" :to="`/categoria/${category.slug}`"
              class="category-card glass reveal"
              :class="'delay-' + (index + 2)">
@@ -95,7 +131,18 @@
         <h3>Reseñas Recientes</h3>
         <p>Los últimos análisis publicados por nuestro equipo editorial</p>
       </div>
-      <p v-if="!articlesToShow.length" class="empty-note">
+      <div v-if="loading" class="grid grid-3" aria-hidden="true">
+        <div v-for="n in 3" :key="n" class="review-card">
+          <div class="review-thumb skeleton-block"></div>
+          <div class="review-body">
+            <span class="skeleton-line" style="width: 35%"></span>
+            <span class="skeleton-line skeleton-line--lg" style="width: 90%"></span>
+            <span class="skeleton-line" style="width: 100%"></span>
+            <span class="skeleton-line" style="width: 55%"></span>
+          </div>
+        </div>
+      </div>
+      <p v-else-if="!articlesToShow.length" class="empty-note">
         {{ articles.length ? "De momento este es nuestro único análisis publicado. Muy pronto habrá más reseñas." : "Aún no hay reseñas publicadas. Estamos preparando los primeros análisis: vuelve pronto." }}
       </p>
       <div v-else class="grid grid-3">
@@ -235,6 +282,10 @@ import {
 
 const articles = ref([]);
 const categories = ref([]);
+// Mientras es true, las secciones que dependen de la API pintan esqueletos con las mismas
+// dimensiones que el contenido real. Sin esto, cada bloque se inserta al llegar los datos
+// y empuja todo lo de abajo: es lo que PageSpeed medía como CLS 0,409.
+const loading = ref(true);
 const showAll = ref(false);
 const email = ref("");
 const toast = useToastStore();
@@ -355,7 +406,11 @@ function getThumbStyle(id) {
 }
 
 onMounted(async () => {
-  await loadCategories();
-  await loadArticles();
+  // En paralelo: en serie duplicaba la ventana en la que la página está a medio montar.
+  try {
+    await Promise.all([loadCategories(), loadArticles()]);
+  } finally {
+    loading.value = false;
+  }
 });
 </script>

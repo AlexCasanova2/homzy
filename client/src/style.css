@@ -2323,3 +2323,55 @@ label {
     height: 300px;
   }
 }
+
+/* -- Esqueletos de carga -------------------------------------------------------------
+   Reservan el hueco de los bloques que dependen de la API mientras esta responde. Sin
+   ellos, cada bloque se insertaba tras la primera pintada y empujaba lo de abajo (CLS
+   de 0,409 medido en PageSpeed, con #categorias como elemento desplazado). Solo animan
+   opacity, que no cuenta como cambio de diseño. */
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.skeleton-line,
+.skeleton-block,
+.skeleton-chip,
+.skeleton-text {
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+/* Texto invisible sobre los mismos elementos y clases que el contenido real: la altura
+   reservada coincide en cualquier viewport sin fijar píxeles a mano. */
+.skeleton-text {
+  color: transparent !important;
+  background: var(--border);
+  border-radius: 6px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.skeleton-line {
+  display: block;
+  height: 13px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  background: var(--border);
+}
+
+.skeleton-line--lg {
+  height: 22px;
+}
+
+.skeleton-block {
+  background: #ece5da;
+}
+
+/* Mismo tamaño que un .hero-chip con texto (medido: 40px de alto con borde). */
+.skeleton-chip {
+  width: 110px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.08);
+}
