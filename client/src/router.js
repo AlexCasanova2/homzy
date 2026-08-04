@@ -1,20 +1,25 @@
 ﻿import { createRouter, createWebHistory } from "vue-router";
+// Solo la portada va en el bundle inicial: es la entrada más habitual y así pinta sin
+// esperar a un segundo fichero. El resto se carga por ruta con import() dinámico. El motivo
+// de fondo: el admin arrastra TipTap/ProseMirror (el editor de artículos), cientos de KB
+// que ningún visitante público debería descargar. Antes del split, el bundle único de
+// ~683 KB era el causante de los 2.250 ms de retraso de renderizado del LCP en móvil.
 import PublicHome from "./pages/PublicHome.vue";
-import PublicArticle from "./pages/PublicArticle.vue";
-import PublicCategories from "./pages/PublicCategories.vue";
-import PublicCategory from "./pages/PublicCategory.vue";
-import PublicSearch from "./pages/PublicSearch.vue";
-import AdminDashboard from "./pages/AdminDashboard.vue";
-import AdminDashboardHome from "./pages/admin/AdminDashboardHome.vue";
-import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage.vue";
-import AdminProductsPage from "./pages/admin/AdminProductsPage.vue";
-import AdminArticlesPage from "./pages/admin/AdminArticlesPage.vue";
-import AdminCategoriesPage from "./pages/admin/AdminCategoriesPage.vue";
-import AdminNewsletterPage from "./pages/admin/AdminNewsletterPage.vue";
-import LegalPage from "./pages/LegalPage.vue";
-import NotFoundPage from "./pages/NotFoundPage.vue";
+const PublicArticle = () => import("./pages/PublicArticle.vue");
+const PublicCategories = () => import("./pages/PublicCategories.vue");
+const PublicCategory = () => import("./pages/PublicCategory.vue");
+const PublicSearch = () => import("./pages/PublicSearch.vue");
+const AdminDashboard = () => import("./pages/AdminDashboard.vue");
+const AdminDashboardHome = () => import("./pages/admin/AdminDashboardHome.vue");
+const AdminAnalyticsPage = () => import("./pages/admin/AdminAnalyticsPage.vue");
+const AdminProductsPage = () => import("./pages/admin/AdminProductsPage.vue");
+const AdminArticlesPage = () => import("./pages/admin/AdminArticlesPage.vue");
+const AdminCategoriesPage = () => import("./pages/admin/AdminCategoriesPage.vue");
+const AdminNewsletterPage = () => import("./pages/admin/AdminNewsletterPage.vue");
+const LegalPage = () => import("./pages/LegalPage.vue");
+const NotFoundPage = () => import("./pages/NotFoundPage.vue");
+const LoginPage = () => import("./pages/LoginPage.vue");
 import { useAuthStore } from "./stores/auth.js";
-import LoginPage from "./pages/LoginPage.vue";
 import { trackEvent } from "./track.js";
 
 // OJO: al añadir una ruta pública aquí hay que añadirla también a los rewrites de
