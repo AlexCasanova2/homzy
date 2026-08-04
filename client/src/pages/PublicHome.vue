@@ -3,11 +3,17 @@
   <div class="blob blob-2"></div>
 
   <section class="hero-main reveal">
-    <div class="hero-bg-image" style="background-image: url('/hero.png')"></div>
+    <!-- hero.webp pesa 54 KB frente a los 621 KB del PNG. El PNG se mantiene en /public
+         porque sigue siendo el og:image y el twitter:image, donde WebP da problemas con
+         algunos rastreadores sociales. -->
+    <div class="hero-bg-image" style="background-image: url('/hero.webp')"></div>
     <div class="container hero-content">
-      <h2 class="hero-title">
+      <!-- h1: era un h2 y la portada se quedaba sin encabezado de primer nivel, la única
+           página pública sin él. .hero-title se estiliza por clase, así que no cambia nada
+           visualmente. -->
+      <h1 class="hero-title">
         Lo que necesitas saber <br/> <span class="text-gradient">antes de comprar</span>
-      </h2>
+      </h1>
       <p class="hero-subtitle">
         Analizamos productos de Amazon a fondo: especificaciones reales, pros, contras
         y para quién sí y para quién no.

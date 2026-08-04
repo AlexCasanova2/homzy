@@ -11,10 +11,17 @@
     { "source": "/api/:path*", "destination": "/api/index" },
     { "source": "/sitemap.xml", "destination": "/api/index" },
     { "source": "/robots.txt", "destination": "/api/index" },
+    { "source": "/llms.txt", "destination": "/api/index" },
     { "source": "/analisis/:slug", "destination": "/api/index" },
     { "source": "/categoria/:slug", "destination": "/api/index" },
     { "source": "/categorias", "destination": "/api/index" },
     { "source": "/buscar", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/privacidad", "destination": "/index.html" },
+    { "source": "/terminos", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/admin/:path*", "destination": "/index.html" },
+    { "source": "/(.*)", "destination": "/api/index" }
   ]
 }

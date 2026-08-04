@@ -116,7 +116,10 @@ export async function renderShell(req, meta = {}) {
     .replace(/[ \t]*<meta\s+name="(description|keywords|robots)"[^>]*>\s*\n?/gi, "")
     .replace(/[ \t]*<meta\s+property="og:[^"]*"[^>]*>\s*\n?/gi, "")
     .replace(/[ \t]*<meta\s+name="twitter:[^"]*"[^>]*>\s*\n?/gi, "")
-    .replace(/[ \t]*<link\s+rel="canonical"[^>]*>\s*\n?/gi, "");
+    .replace(/[ \t]*<link\s+rel="canonical"[^>]*>\s*\n?/gi, "")
+    // Recursos que solo sirven en la portada (el preload del hero). Precargarlos en un
+    // artículo son bytes que el navegador descarga y nunca usa.
+    .replace(/[ \t]*<link[^>]*data-homzy-home-only[^>]*>\s*\n?/gi, "");
 
   let page = stripped
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)

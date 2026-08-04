@@ -1,4 +1,6 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Montserrat:wght@700;800&family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap');
+﻿/* Las fuentes se piden desde index.html en una sola petición. No devolver el @import aquí:
+   bloquea el renderizado en serie, porque el navegador tiene que descargar y parsear este
+   CSS antes de descubrir la petición de fuentes. */
 
 :root {
   --primary: #b0552f;

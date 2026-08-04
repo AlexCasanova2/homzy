@@ -15,8 +15,20 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#b0552f" />
+    <!-- El hero es el elemento LCP de la portada y es un background-image dentro de un
+         componente que pinta Vue, así que el navegador no lo descubre hasta que ejecuta el
+         bundle. Este preload lo adelanta. Va marcado como home-only porque renderShell
+         reutiliza este fichero para artículos y categorías, donde el hero no se usa. -->
+    <link rel="preload" as="image" href="/hero.webp" fetchpriority="high" data-homzy-home-only="true" />
+    <!-- Una sola petición para las tres familias que se usan de verdad (Fraunces, Montserrat,
+         Outfit). Antes había dos: esta y un @import dentro de style.css, que serializaba la
+         cadena — el navegador no descubría la segunda hasta parsear el CSS. Fraunces es
+         variable: pedir el rango 600..800 cuesta lo mismo que un peso suelto y hace que el
+         font-weight: 800 del CSS se sirva de verdad en lugar de sintetizarse. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700&family=Poppins:wght@600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600..800&family=Montserrat:wght@700;800&family=Outfit:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <title>Homzy | Análisis de productos antes de comprar</title>

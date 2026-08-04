@@ -968,10 +968,17 @@ function truncate(value, max = 160) {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
-async function sendShell(req, res, meta) {
+// status: las páginas de "no encontrado" tienen que responder 404 de verdad. Sirviéndolas
+// con 200 Google las cuenta como soft 404: no las indexa (van con noindex) pero gasta
+// rastreo en ellas y las reporta como error en Search Console.
+async function sendShell(req, res, meta, status = 200) {
   try {
     const html = await renderShell(req, meta);
-    res.set("Content-Type", "text/html; charset=utf-8").set("Cache-Control", HTML_CACHE).send(html);
+    res
+      .status(status)
+      .set("Content-Type", "text/html; charset=utf-8")
+      .set("Cache-Control", HTML_CACHE)
+      .send(html);
   } catch (error) {
     // Si el shell no se puede cargar, mejor que la plataforma sirva el estático de
     // siempre que devolver un 500 y tumbar la página.
@@ -1023,7 +1030,7 @@ app.get("/analisis/:slug", ah(async (req, res) => {
       title: `Análisis no encontrado | ${SITE_NAME}`,
       description: "Este análisis no existe o ya no está disponible.",
       robots: "noindex, follow",
-    });
+    }, 404);
   }
 
   const canonical = article.canonical_url || `${origin}/analisis/${article.slug}`;
@@ -1145,7 +1152,7 @@ app.get("/categoria/:slug", ah(async (req, res) => {
       title: `Categoría no encontrada | ${SITE_NAME}`,
       description: "Esta categoría no existe o ha cambiado de dirección.",
       robots: "noindex, follow",
-    });
+    }, 404);
   }
 
   // Lista servida de artículos: enlaces internos que el crawler lee sin ejecutar JS.
@@ -1303,7 +1310,75 @@ app.get("/robots.txt", (req, res) => {
     );
 });
 
+// llms.txt: el índice del sitio en Markdown para modelos de lenguaje. Se genera desde la
+// base de datos igual que el sitemap para que no haya que mantenerlo a mano. Requisitos del
+// formato: un H1 y enlaces — antes esta ruta caía en el catch-all de Vercel y devolvía el
+// index.html con un 200, así que los validadores recibían HTML en lugar de Markdown.
+app.get("/llms.txt", ah(async (req, res) => {
+  const origin = siteOrigin(req);
+
+  const categories = await all(
+    `SELECT DISTINCT c.name, c.slug
+     FROM categories c
+     JOIN article_categories ac ON ac.category_id = c.id
+     JOIN articles a ON a.id = ac.article_id AND a.status = 'published'
+     ORDER BY c.name`
+  );
+
+  const articles = await all(
+    `SELECT slug, title, meta_description FROM articles
+     WHERE status = 'published' AND slug IS NOT NULL
+     ORDER BY coalesce(published_at, created_at) DESC`
+  );
+
+  const oneLine = (value) => String(value || "").replace(/\s+/g, " ").trim();
+
+  const lines = [
+    `# ${SITE_NAME}`,
+    "",
+    `> ${DEFAULT_DESCRIPTION}`,
+    "",
+    "Cada análisis parte de la ficha real del producto en Amazon e incluye especificaciones,",
+    "pros y contras, una guía de compra y las incoherencias que encontramos en la ficha del",
+    "fabricante. Los enlaces a Amazon son de afiliado.",
+    "",
+    "## Categorías",
+    "",
+    ...categories.map((c) => `- [${oneLine(c.name)}](${origin}/categoria/${c.slug})`),
+    "",
+    "## Análisis",
+    "",
+    ...articles.map((a) => {
+      const description = oneLine(a.meta_description);
+      return `- [${oneLine(a.title)}](${origin}/analisis/${a.slug})${description ? `: ${description}` : ""}`;
+    }),
+    "",
+  ];
+
+  res
+    .set("Content-Type", "text/plain; charset=utf-8")
+    .set("Cache-Control", HTML_CACHE)
+    .send(lines.join("\n"));
+}));
+
 app.use("/api", (_req, res) => res.status(404).json({ error: "API route not found" }));
+
+// Catch-all: cualquier ruta que llegue hasta aquí no es un fichero estático, ni una ruta
+// del cliente (esas las sirve Vercel desde index.html; ver rewrites en vercel.json), ni
+// ninguna de las rutas de arriba. Antes devolvía la portada con un 200, así que cualquier
+// dirección inventada era un duplicado de la home.
+app.use(ah(async (req, res) => {
+  await sendShell(
+    req,
+    res,
+    {
+      title: `Página no encontrada | ${SITE_NAME}`,
+      description: "Esta página no existe o ha cambiado de dirección.",
+      robots: "noindex, follow",
+    },
+    404
+  );
+}));
 
 // eslint-disable-next-line no-unused-vars
 app.use((error, _req, res, _next) => {

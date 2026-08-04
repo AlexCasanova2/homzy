@@ -17,6 +17,9 @@ import { useAuthStore } from "./stores/auth.js";
 import LoginPage from "./pages/LoginPage.vue";
 import { trackEvent } from "./track.js";
 
+// OJO: al añadir una ruta pública aquí hay que añadirla también a los rewrites de
+// vercel.json apuntando a /index.html. Lo que no está enumerado allí cae en el catch-all,
+// que ahora responde 404 de verdad en lugar de servir la portada.
 const routes = [
   { path: "/login", component: LoginPage },
   { path: "/privacidad", component: LegalPage, props: { title: "Política de Privacidad" } },
