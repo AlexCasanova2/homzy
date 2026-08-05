@@ -609,10 +609,22 @@ app.get("/api/articles/:idOrSlug", optionalAuthenticate, ah(async (req, res) => 
   const categoryIds = (await all("SELECT category_id FROM article_categories WHERE article_id = $1", [id])).map((c) => c.category_id);
 
   // Resumen del producto vinculado para datos estructurados (JSON-LD) en el cliente.
+  // brand/gtin/mpn se resuelven aquí para que el cliente no duplique la lógica de extraer
+  // identificadores de la ficha; su bloque Product debe ser gemelo del que sirve el shell.
   const productRow = row.product_id
-    ? await one("SELECT title, price, rating, reviews, asin, images FROM products WHERE id = $1", [row.product_id])
+    ? await one("SELECT title, price, rating, reviews, asin, images, details FROM products WHERE id = $1", [row.product_id])
     : null;
-  const product = productRow ? { ...productRow, images: safeJsonParse(productRow.images, []) } : null;
+  const product = productRow
+    ? {
+        title: productRow.title,
+        price: productRow.price,
+        rating: productRow.rating,
+        reviews: productRow.reviews,
+        asin: productRow.asin,
+        images: safeJsonParse(productRow.images, []),
+        ...productIdentifiers(safeJsonParse(productRow.details, null)),
+      }
+    : null;
 
   res.json({ ...row, html: sanitizeArticleHtml(row.html), tags, categoryIds, product });
 }));
@@ -993,6 +1005,32 @@ function parsePriceEuro(value) {
   return Number(`${match[1]}.${match[2] || "0"}`);
 }
 
+// Identificadores para los datos estructurados de ficha de comerciante. La ficha scrapeada
+// de Amazon los trae dentro de `details` bajo claves variables según la plantilla de la
+// categoría. El GTIN solo se emite si tiene una longitud válida (8/12/13/14 dígitos):
+// un identificador malformado es peor que ninguno.
+function productIdentifiers(details) {
+  const d = details || {};
+  const brand = d["Marca"] || d["Fabricante"] || null;
+  const rawGtin =
+    d["Núm. de identificación comercial global"] || d["UPC"] || d["EAN"] || d["Tipo de identificador de producto"] || null;
+  const digits = String(rawGtin || "").replace(/\D/g, "").replace(/^0+(?=\d{8})/, "");
+  const gtin = [8, 12, 13, 14].includes(digits.length) ? digits : null;
+  const mpn =
+    d["Número de modelo del producto"] || d["Número Modelo"] || d["Número de modelo"] || d["Número Pieza"] || null;
+  return { brand, gtin, mpn };
+}
+
+// Los títulos de Amazon llegan a 200 caracteres y Google marca el `name` del Product como
+// inválido por longitud. Corte limpio en el último espacio antes del límite, sin puntos
+// suspensivos: es un nombre de producto, no un extracto.
+function productName(title, max = 150) {
+  const text = String(title || "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  return cut.slice(0, cut.lastIndexOf(" ") > 60 ? cut.lastIndexOf(" ") : max).replace(/[\s,;|–-]+$/, "");
+}
+
 // FAQ desde los pares h3+p de la sección "Preguntas frecuentes": misma lógica que el
 // cliente, para que el bloque servido y el hidratado sean equivalentes.
 function extractFaq($) {
@@ -1053,19 +1091,25 @@ app.get("/analisis/:slug", ah(async (req, res) => {
     : [];
 
   const product = article.product_id
-    ? await one("SELECT title, price, rating, reviews, images FROM products WHERE id = $1", [article.product_id])
+    ? await one("SELECT title, price, rating, reviews, images, details FROM products WHERE id = $1", [article.product_id])
     : null;
 
   const jsonLd = [];
   if (product) {
     const price = parsePriceEuro(product.price);
     const images = safeJsonParse(product.images, []);
+    // brand/gtin/mpn: sin un identificador, Search Console avisa de ficha de comerciante
+    // incompleta. La marca y el GTIN vienen de la propia ficha scrapeada cuando existen.
+    const { brand, gtin, mpn } = productIdentifiers(safeJsonParse(product.details, null));
     jsonLd.push({
       "@context": "https://schema.org",
       "@type": "Product",
-      name: product.title,
+      name: productName(product.title),
       image: (images.length ? images : [article.image_url]).filter(Boolean).slice(0, 5),
       ...(article.meta_description ? { description: article.meta_description } : {}),
+      ...(brand ? { brand: { "@type": "Brand", name: brand } } : {}),
+      ...(gtin ? { gtin } : {}),
+      ...(mpn ? { mpn } : {}),
       ...(product.rating && product.reviews
         ? { aggregateRating: { "@type": "AggregateRating", ratingValue: product.rating, reviewCount: product.reviews, bestRating: 5 } }
         : {}),

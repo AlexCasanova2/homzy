@@ -301,12 +301,23 @@ function injectStructuredData() {
 
   if (art.product) {
     const price = parsePriceEuro(art.product.price);
+    // Los títulos de Amazon superan el límite de longitud del name de una ficha de
+    // comerciante; corte limpio en palabra, igual que hace el servidor.
+    const rawName = String(art.product.title || "").replace(/\s+/g, " ").trim();
+    const cut = rawName.slice(0, 150);
+    const name = rawName.length <= 150
+      ? rawName
+      : cut.slice(0, cut.lastIndexOf(" ") > 60 ? cut.lastIndexOf(" ") : 150).replace(/[\s,;|–-]+$/, "");
     blocks.push({
       "@context": "https://schema.org",
       "@type": "Product",
-      name: art.product.title,
+      name,
       image: (art.product.images?.length ? art.product.images : [art.image_url]).filter(Boolean).slice(0, 5),
       ...(art.meta_description ? { description: art.meta_description } : {}),
+      // brand/gtin/mpn los resuelve el servidor desde la ficha del producto.
+      ...(art.product.brand ? { brand: { "@type": "Brand", name: art.product.brand } } : {}),
+      ...(art.product.gtin ? { gtin: art.product.gtin } : {}),
+      ...(art.product.mpn ? { mpn: art.product.mpn } : {}),
       ...(art.product.rating && art.product.reviews
         ? { aggregateRating: { "@type": "AggregateRating", ratingValue: art.product.rating, reviewCount: art.product.reviews, bestRating: 5 } }
         : {}),
