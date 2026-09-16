@@ -176,14 +176,3 @@ export function publicOrigin(fallback = null) {
   if (site?.startsWith("http")) return site.replace(/\/$/, "");
   return fallback;
 }
-
-/**
- * Enlace profundo a la herramienta de Inspección de URL en la interfaz de Search Console.
- * Es la vía real para pedir indexación de un artículo: la Indexing API de Google solo
- * admite oficialmente JobPosting y BroadcastEvent, no contenido editorial.
- */
-export function inspectionUiLink(url) {
-  const site = getSiteUrl();
-  if (!site) return null;
-  return `https://search.google.com/search-console/inspect?resource_id=${encodeURIComponent(site)}&url=${encodeURIComponent(url)}`;
-}

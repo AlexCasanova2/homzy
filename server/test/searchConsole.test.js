@@ -6,7 +6,6 @@ import {
   isConfigured,
   missingConfig,
   publicOrigin,
-  inspectionUiLink,
 } from "../src/services/searchConsole.js";
 
 const KEYS = ["GSC_CLIENT_EMAIL", "GSC_PRIVATE_KEY", "GSC_SITE_URL", "SITE_URL"];
@@ -69,18 +68,5 @@ test("publicOrigin never falls back to the request host when the property is kno
   // Sin nada configurado se acepta el host de la petición: solo se usa para mostrar.
   withEnv({}, () => {
     assert.equal(publicOrigin("http://localhost:5177"), "http://localhost:5177");
-  });
-});
-
-test("inspectionUiLink points at the Search Console inspection tool with both parameters", () => {
-  withEnv({ GSC_SITE_URL: "sc-domain:homzy.es" }, () => {
-    const link = inspectionUiLink("https://homzy.es/analisis/mi-articulo");
-    assert.equal(link.startsWith("https://search.google.com/search-console/inspect?"), true);
-    assert.equal(link.includes(`resource_id=${encodeURIComponent("sc-domain:homzy.es")}`), true);
-    assert.equal(link.includes(`url=${encodeURIComponent("https://homzy.es/analisis/mi-articulo")}`), true);
-  });
-
-  withEnv({}, () => {
-    assert.equal(inspectionUiLink("https://homzy.es/analisis/mi-articulo"), null);
   });
 });

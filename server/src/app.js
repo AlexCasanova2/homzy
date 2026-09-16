@@ -413,7 +413,6 @@ app.get("/api/search-console/coverage", authenticate, ah(async (req, res) => {
         userCanonical: r.user_canonical,
         richResults: r.rich_results,
         checkedAt: r.checked_at,
-        inspectionUiLink: searchConsole.inspectionUiLink(url),
       };
     }),
   });
