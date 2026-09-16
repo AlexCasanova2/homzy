@@ -77,7 +77,7 @@ test("inspectionUiLink points at the Search Console inspection tool with both pa
     const link = inspectionUiLink("https://homzy.es/analisis/mi-articulo");
     assert.equal(link.startsWith("https://search.google.com/search-console/inspect?"), true);
     assert.equal(link.includes(`resource_id=${encodeURIComponent("sc-domain:homzy.es")}`), true);
-    assert.equal(link.includes(`id=${encodeURIComponent("https://homzy.es/analisis/mi-articulo")}`), true);
+    assert.equal(link.includes(`url=${encodeURIComponent("https://homzy.es/analisis/mi-articulo")}`), true);
   });
 
   withEnv({}, () => {

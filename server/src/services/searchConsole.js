@@ -185,5 +185,5 @@ export function publicOrigin(fallback = null) {
 export function inspectionUiLink(url) {
   const site = getSiteUrl();
   if (!site) return null;
-  return `https://search.google.com/search-console/inspect?resource_id=${encodeURIComponent(site)}&id=${encodeURIComponent(url)}`;
+  return `https://search.google.com/search-console/inspect?resource_id=${encodeURIComponent(site)}&url=${encodeURIComponent(url)}`;
 }
