@@ -14,6 +14,20 @@
         </button>
       </div>
 
+      <div class="article-toolbar">
+        <label class="article-search">
+          <SearchIcon :size="16" aria-hidden="true" />
+          <input
+            v-model="articleSearch"
+            type="search"
+            placeholder="Buscar por título, slug o estado..."
+            aria-label="Buscar artículos"
+            @input="page = 1"
+          />
+        </label>
+        <span class="search-count">{{ total }} {{ total === 1 ? 'artículo' : 'artículos' }}</span>
+      </div>
+
       <div class="table-responsive">
         <table class="table table--stack">
           <thead>
@@ -53,8 +67,10 @@
                 </div>
               </td>
             </tr>
-            <tr v-if="articles.length === 0">
-              <td colspan="3" class="text-center py-40 text-muted">No hay artículos creados.</td>
+            <tr v-if="filteredArticles.length === 0">
+              <td colspan="3" class="text-center py-40 text-muted">
+                {{ articleSearch ? 'No hay artículos que coincidan con la búsqueda.' : 'No hay artículos creados.' }}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -237,6 +253,7 @@ import {
   Trash2Icon, 
   XIcon,
   PlusIcon,
+  SearchIcon,
   ArrowLeftIcon,
   Edit3Icon,
   ExternalLinkIcon
@@ -252,12 +269,29 @@ const editingId = ref(null);
 const publishElapsed = ref({});
 const publishTimers = new Map();
 const canonicalTouched = ref(false);
+const articleSearch = ref("");
 const toast = useToastStore();
 const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "zona local";
 
-const { page, pageSize, total, totalPages, paginated: pagedArticles } = usePagination(articles, {
+const filteredArticles = computed(() => {
+  const search = normalizeSearch(articleSearch.value);
+  if (!search) return articles.value;
+  return articles.value.filter((article) => normalizeSearch(
+    `${article.title} ${article.slug || ""} ${article.seo_title || ""} ${article.status || ""}`
+  ).includes(search));
+});
+
+const { page, pageSize, total, totalPages, paginated: pagedArticles } = usePagination(filteredArticles, {
   storageKey: "homzy.admin.articles.pageSize",
 });
+
+function normalizeSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 const canonicalError = computed(() => {
   if (!form.value.canonicalUrl) return "";
@@ -541,6 +575,48 @@ onUnmounted(() => {
   margin-bottom: 24px;
 }
 
+.article-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.article-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: min(460px, 100%);
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--text-muted);
+}
+
+.article-search:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(176, 85, 47, 0.12);
+}
+
+.article-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.search-count {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .header-info {
   flex: 1;
 }
@@ -766,5 +842,7 @@ onUnmounted(() => {
   .slug-input-wrapper { display: block; }
   .slug-prefix { padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--border); }
   .action-buttons { min-width: max-content; }
+  .article-toolbar { align-items: stretch; flex-direction: column; gap: 8px; }
+  .article-search { width: 100%; }
 }
 </style>
