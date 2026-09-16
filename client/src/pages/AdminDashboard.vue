@@ -20,6 +20,10 @@
           <span class="nav-icon"><BarChart3Icon :size="20" /></span>
           <span>Analitica</span>
         </RouterLink>
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/search-console') }" to="/admin/search-console" title="Search Console">
+          <span class="nav-icon"><SearchIcon :size="20" /></span>
+          <span>Search Console</span>
+        </RouterLink>
         <RouterLink class="nav-item" :class="{ active: isActive('/admin/articles') }" to="/admin/articles" title="Articulos">
           <span class="nav-icon"><FileTextIcon :size="20" /></span>
           <span>Articulos</span>
@@ -76,6 +80,7 @@ import {
   FolderIcon, 
   ExternalLinkIcon,
   MailIcon,
+  SearchIcon,
   LogOutIcon
 } from "lucide-vue-next";
 
@@ -101,6 +106,7 @@ const currentPageTitle = computed(() => {
   const map = {
     '/admin': 'Resumen General',
     '/admin/analytics': 'Analítica',
+    '/admin/search-console': 'Search Console',
     '/admin/articles': 'Gestión de Artículos',
     '/admin/products': 'Catálogo de Productos',
     '/admin/categories': 'Taxonomías',

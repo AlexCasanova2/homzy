@@ -18,6 +18,7 @@
 - `server/src/db.js` opens `db/app.db` by default, enables WAL, and executes `db/schema.sql` on every startup. Database files are ignored; avoid depending on local data in changes or tests.
 - `db/schema.sql` describes fresh databases; `createDb()` also adds required columns to legacy databases at startup. `node server/migrate.js` uses that same path. Verify persistence changes against both fresh and legacy-shaped temporary databases.
 - Under the normal `npm --prefix server ...` scripts, relative environment paths resolve from `server/`. Leave `DB_PATH` unset to use the repository DB; `server/.env.example` uses `../db/app.db`.
+- Search Console (`server/src/services/searchConsole.js`, sección `/admin/search-console`) usa una cuenta de servicio: `GSC_CLIENT_EMAIL`, `GSC_PRIVATE_KEY` y `GSC_SITE_URL`. Sin las tres, `isConfigured()` es falso y sus rutas responden 400. La tabla `gsc_url_status` se crea de forma perezosa porque `db/schema.pg.sql` no se ejecuta al arrancar. No añadir la Indexing API de Google para artículos: solo admite `JobPosting` y `BroadcastEvent`.
 - `LLM_PROVIDER` defaults to Ollama and is considered enabled whenever it has a base URL. OpenAI and OpenRouter are enabled only with `LLM_API_KEY`. `requestLlmHtml` returns structured JSON when possible and `{ html: content }` for non-JSON responses; the template generator returns an HTML string.
 
 ## Authentication And Affiliate Safety

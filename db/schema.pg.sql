@@ -101,7 +101,26 @@ CREATE TABLE IF NOT EXISTS page_events (
   created_at TEXT NOT NULL
 );
 
+-- Caché del estado de indexación que devuelve la API de Inspección de URL de Search
+-- Console. Se cachea porque esa API tiene cuota (2.000 consultas/día) y el admin
+-- necesita pintar la tabla completa en cada carga.
+CREATE TABLE IF NOT EXISTS gsc_url_status (
+  url TEXT PRIMARY KEY,
+  article_id TEXT,
+  verdict TEXT,
+  coverage_state TEXT,
+  robots_txt_state TEXT,
+  indexing_state TEXT,
+  page_fetch_state TEXT,
+  last_crawl_time TEXT,
+  google_canonical TEXT,
+  user_canonical TEXT,
+  rich_results TEXT,
+  checked_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_status_scheduled_at ON articles(status, scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_page_events_type_created ON page_events(type, created_at);
 CREATE INDEX IF NOT EXISTS idx_page_events_article ON page_events(article_id, type);
+CREATE INDEX IF NOT EXISTS idx_gsc_url_status_article ON gsc_url_status(article_id);

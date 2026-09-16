@@ -12,6 +12,7 @@ const PublicSearch = () => import("./pages/PublicSearch.vue");
 const AdminDashboard = () => import("./pages/AdminDashboard.vue");
 const AdminDashboardHome = () => import("./pages/admin/AdminDashboardHome.vue");
 const AdminAnalyticsPage = () => import("./pages/admin/AdminAnalyticsPage.vue");
+const AdminSearchConsolePage = () => import("./pages/admin/AdminSearchConsolePage.vue");
 const AdminProductsPage = () => import("./pages/admin/AdminProductsPage.vue");
 const AdminArticlesPage = () => import("./pages/admin/AdminArticlesPage.vue");
 const AdminCategoriesPage = () => import("./pages/admin/AdminCategoriesPage.vue");
@@ -42,6 +43,7 @@ const routes = [
     children: [
       { path: "", component: AdminDashboardHome },
       { path: "analytics", component: AdminAnalyticsPage },
+      { path: "search-console", component: AdminSearchConsolePage },
       { path: "products", component: AdminProductsPage },
       { path: "articles", component: AdminArticlesPage },
       { path: "categories", component: AdminCategoriesPage },

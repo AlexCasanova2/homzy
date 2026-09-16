@@ -25,6 +25,7 @@ import { resolveAffiliateUrl, validateAffiliateUrl } from "./services/affiliate.
 import * as cheerio from "cheerio";
 import { hasAffiliateLinkForAsin, prepareGeneratedArticleHtml, sanitizeArticleHtml } from "./services/articleHtml.js";
 import { DEFAULT_DESCRIPTION, SITE_NAME, escapeHtml, renderShell, siteOrigin } from "./services/seoMeta.js";
+import * as searchConsole from "./services/searchConsole.js";
 
 // En producción sin JWT_SECRET no hay fallback: el login/verify fallará con 500,
 // pero la app arranca y /api/health permite diagnosticar qué variable falta.
@@ -75,6 +76,7 @@ app.get("/api/health", ah(async (_req, res) => {
       jwtSecret: Boolean(process.env.JWT_SECRET),
       databaseUrl: Boolean(process.env.DATABASE_URL),
       amazonStoreId: Boolean(process.env.AMAZON_STORE_ID),
+      searchConsole: searchConsole.isConfigured(),
       nodeEnv: process.env.NODE_ENV || "(sin definir)",
     },
   });
@@ -265,6 +267,242 @@ app.get("/api/metrics/summary", authenticate, ah(async (req, res) => {
   );
 
   res.json({ days, totals, byDay, byArticle, byPath, byReferrer, byContext });
+}));
+
+// -- SEARCH CONSOLE --
+// Nota de diseño: no existe "enviar a indexar" por API para contenido editorial. La
+// Indexing API de Google solo admite JobPosting y BroadcastEvent; usarla para artículos
+// incumple sus condiciones. Lo que sí se automatiza aquí es *detectar* qué está sin
+// indexar y reenviar el sitemap; la petición en sí se hace con un clic en la interfaz
+// de Search Console, a la que se enlaza directamente por URL.
+
+// La tabla se crea de forma perezosa: db/schema.pg.sql no se ejecuta al arrancar
+// (la base vive en Supabase), así que la primera visita a la sección la provisiona.
+let gscTableReady = false;
+async function ensureGscTable() {
+  if (gscTableReady) return;
+  await query(`CREATE TABLE IF NOT EXISTS gsc_url_status (
+    url TEXT PRIMARY KEY,
+    article_id TEXT,
+    verdict TEXT,
+    coverage_state TEXT,
+    robots_txt_state TEXT,
+    indexing_state TEXT,
+    page_fetch_state TEXT,
+    last_crawl_time TEXT,
+    google_canonical TEXT,
+    user_canonical TEXT,
+    rich_results TEXT,
+    checked_at TEXT NOT NULL
+  )`);
+  await query("CREATE INDEX IF NOT EXISTS idx_gsc_url_status_article ON gsc_url_status(article_id)");
+  gscTableReady = true;
+}
+
+const gscLimiter = rateLimit({ windowMs: 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false });
+
+function gscError(res, error) {
+  const status = error?.status === 403 || error?.status === 401 ? 403 : 502;
+  return res.status(status).json({ error: error?.message || "Error consultando Search Console" });
+}
+
+// Falta de configuración es culpa nuestra, no de Google: 400, no 502.
+function requireGsc(_req, res, next) {
+  if (!searchConsole.isConfigured()) {
+    return res.status(400).json({
+      error: `Search Console sin configurar: falta ${searchConsole.missingConfig().join(", ")}`,
+      missing: searchConsole.missingConfig(),
+    });
+  }
+  next();
+}
+
+app.get("/api/search-console/status", authenticate, ah(async (_req, res) => {
+  if (!searchConsole.isConfigured()) {
+    return res.json({ configured: false, missing: searchConsole.missingConfig(), siteUrl: searchConsole.getSiteUrl() });
+  }
+  try {
+    const sites = await searchConsole.listSites();
+    const siteUrl = searchConsole.getSiteUrl();
+    const match = sites.find((s) => s.siteUrl === siteUrl);
+    res.json({
+      configured: true,
+      siteUrl,
+      hasAccess: Boolean(match),
+      permissionLevel: match?.permissionLevel || null,
+      availableSites: sites.map((s) => s.siteUrl),
+    });
+  } catch (error) {
+    res.json({ configured: true, siteUrl: searchConsole.getSiteUrl(), hasAccess: false, error: error.message });
+  }
+}));
+
+app.get("/api/search-console/summary", authenticate, requireGsc, gscLimiter, ah(async (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 28, 1), 480);
+  // Search Console va con 2-3 días de retraso; pedir hasta hoy devuelve ceros al final.
+  const endDate = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
+  const startDate = new Date(Date.now() - (days + 2) * 86400000).toISOString().slice(0, 10);
+
+  try {
+    const [totalsRows, byDay, queries, pages, countries, devices] = await Promise.all([
+      searchConsole.searchAnalytics({ startDate, endDate, dimensions: [], rowLimit: 1 }),
+      searchConsole.searchAnalytics({ startDate, endDate, dimensions: ["date"], rowLimit: 480 }),
+      searchConsole.searchAnalytics({ startDate, endDate, dimensions: ["query"], rowLimit: 100 }),
+      searchConsole.searchAnalytics({ startDate, endDate, dimensions: ["page"], rowLimit: 100 }),
+      searchConsole.searchAnalytics({ startDate, endDate, dimensions: ["country"], rowLimit: 15 }),
+      searchConsole.searchAnalytics({ startDate, endDate, dimensions: ["device"], rowLimit: 5 }),
+    ]);
+
+    const shape = (rows, key) => rows.map((r) => ({
+      [key]: r.keys?.[0] ?? null,
+      clicks: r.clicks || 0,
+      impressions: r.impressions || 0,
+      ctr: r.ctr || 0,
+      position: r.position || 0,
+    }));
+
+    res.json({
+      days,
+      range: { startDate, endDate },
+      totals: totalsRows[0]
+        ? { clicks: totalsRows[0].clicks || 0, impressions: totalsRows[0].impressions || 0, ctr: totalsRows[0].ctr || 0, position: totalsRows[0].position || 0 }
+        : { clicks: 0, impressions: 0, ctr: 0, position: 0 },
+      byDay: shape(byDay, "date"),
+      byQuery: shape(queries, "query"),
+      byPage: shape(pages, "page"),
+      byCountry: shape(countries, "country"),
+      byDevice: shape(devices, "device"),
+    });
+  } catch (error) {
+    gscError(res, error);
+  }
+}));
+
+/** Estado de indexación de cada artículo publicado, desde la caché local. */
+app.get("/api/search-console/coverage", authenticate, ah(async (req, res) => {
+  await ensureGscTable();
+  const origin = searchConsole.publicOrigin(siteOrigin(req));
+  const rows = await all(
+    `SELECT a.id, a.title, a.slug, a.published_at,
+            s.verdict, s.coverage_state, s.robots_txt_state, s.indexing_state,
+            s.page_fetch_state, s.last_crawl_time, s.google_canonical, s.user_canonical,
+            s.rich_results, s.checked_at
+     FROM articles a
+     LEFT JOIN gsc_url_status s ON s.article_id = a.id
+     WHERE a.status = 'published'
+     ORDER BY a.published_at DESC NULLS LAST`
+  );
+
+  res.json({
+    siteUrl: searchConsole.getSiteUrl(),
+    articles: rows.map((r) => {
+      const url = `${origin}/analisis/${r.slug}`;
+      return {
+        id: r.id,
+        title: r.title,
+        slug: r.slug,
+        url,
+        publishedAt: r.published_at,
+        verdict: r.verdict,
+        coverageState: r.coverage_state,
+        robotsTxtState: r.robots_txt_state,
+        indexingState: r.indexing_state,
+        pageFetchState: r.page_fetch_state,
+        lastCrawlTime: r.last_crawl_time,
+        googleCanonical: r.google_canonical,
+        userCanonical: r.user_canonical,
+        richResults: r.rich_results,
+        checkedAt: r.checked_at,
+        inspectionUiLink: searchConsole.inspectionUiLink(url),
+      };
+    }),
+  });
+}));
+
+/**
+ * Inspecciona URLs contra la API y cachea el resultado.
+ * Sin `articleIds` inspecciona los artículos nunca comprobados o con datos rancios.
+ * La cuota diaria de la API es de 2.000 consultas, así que se limita el lote.
+ */
+app.post("/api/search-console/inspect", authenticate, requireGsc, gscLimiter, ah(async (req, res) => {
+  const parsed = z.object({
+    articleIds: z.array(z.string()).max(50).optional(),
+    staleHours: z.number().int().min(0).max(720).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  }).safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  await ensureGscTable();
+  const origin = searchConsole.publicOrigin(siteOrigin(req));
+  const limit = parsed.data.limit ?? 10;
+  const staleHours = parsed.data.staleHours ?? 24;
+  const staleBefore = new Date(Date.now() - staleHours * 3600000).toISOString();
+
+  const targets = parsed.data.articleIds?.length
+    ? await all(
+        "SELECT id, slug FROM articles WHERE status = 'published' AND id = ANY($1::text[]) LIMIT $2",
+        [parsed.data.articleIds, limit]
+      )
+    : await all(
+        `SELECT a.id, a.slug FROM articles a
+         LEFT JOIN gsc_url_status s ON s.article_id = a.id
+         WHERE a.status = 'published' AND (s.checked_at IS NULL OR s.checked_at < $1)
+         ORDER BY s.checked_at ASC NULLS FIRST, a.published_at DESC NULLS LAST
+         LIMIT $2`,
+        [staleBefore, limit]
+      );
+
+  const results = [];
+  for (const target of targets) {
+    const url = `${origin}/analisis/${target.slug}`;
+    try {
+      const info = await searchConsole.inspectUrl(url);
+      await query(
+        `INSERT INTO gsc_url_status
+          (url, article_id, verdict, coverage_state, robots_txt_state, indexing_state,
+           page_fetch_state, last_crawl_time, google_canonical, user_canonical, rich_results, checked_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         ON CONFLICT (url) DO UPDATE SET
+           article_id = EXCLUDED.article_id, verdict = EXCLUDED.verdict,
+           coverage_state = EXCLUDED.coverage_state, robots_txt_state = EXCLUDED.robots_txt_state,
+           indexing_state = EXCLUDED.indexing_state, page_fetch_state = EXCLUDED.page_fetch_state,
+           last_crawl_time = EXCLUDED.last_crawl_time, google_canonical = EXCLUDED.google_canonical,
+           user_canonical = EXCLUDED.user_canonical, rich_results = EXCLUDED.rich_results,
+           checked_at = EXCLUDED.checked_at`,
+        [
+          url, target.id, info.verdict, info.coverageState, info.robotsTxtState, info.indexingState,
+          info.pageFetchState, info.lastCrawlTime, info.googleCanonical, info.userCanonical,
+          info.richResults, nowIso(),
+        ]
+      );
+      results.push({ articleId: target.id, url, ok: true, ...info });
+    } catch (error) {
+      results.push({ articleId: target.id, url, ok: false, error: error.message });
+      // Un 429/403 se repetiría en todas las siguientes: se corta el lote.
+      if (error.status === 429 || error.status === 403) break;
+    }
+  }
+
+  res.json({ inspected: results.length, results });
+}));
+
+app.get("/api/search-console/sitemaps", authenticate, requireGsc, gscLimiter, ah(async (_req, res) => {
+  try {
+    res.json({ sitemaps: await searchConsole.listSitemaps() });
+  } catch (error) {
+    gscError(res, error);
+  }
+}));
+
+app.post("/api/search-console/sitemaps/submit", authenticate, requireGsc, gscLimiter, ah(async (req, res) => {
+  const parsed = z.object({ feedpath: z.string().url().optional() }).safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const feedpath = parsed.data.feedpath || `${searchConsole.publicOrigin(siteOrigin(req))}/sitemap.xml`;
+  try {
+    res.json(await searchConsole.submitSitemap(feedpath));
+  } catch (error) {
+    gscError(res, error);
+  }
 }));
 
 // -- NEWSLETTER --
