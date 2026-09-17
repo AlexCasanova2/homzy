@@ -58,23 +58,9 @@
             <BarChart3Icon :size="18" class="text-blue" />
             <h4>Evolución diaria</h4>
           </div>
-          <div class="chart-legend">
-            <span class="legend-item"><i class="swatch swatch-views"></i> Visitas</span>
-            <span class="legend-item"><i class="swatch swatch-clicks"></i> Clics</span>
-          </div>
         </div>
 
-        <div v-if="metrics.byDay.length" class="metrics-chart">
-          <div
-            v-for="d in metrics.byDay"
-            :key="d.day"
-            class="chart-col"
-            :title="`${d.day}: ${d.views} visitas, ${d.clicks} clics`"
-          >
-            <div class="bar bar-views" :style="{ height: barHeight(d.views) }"></div>
-            <div class="bar bar-clicks" :style="{ height: barHeight(d.clicks) }"></div>
-          </div>
-        </div>
+        <DailyMetricsChart v-if="metrics.byDay.length" :rows="chartRows" :labels="['Visitas', 'Clics de afiliado']" />
         <p v-else class="text-muted metrics-empty">Sin actividad registrada en este periodo.</p>
       </section>
 
@@ -229,6 +215,7 @@
 import { computed, onMounted, ref } from "vue";
 import api from "../../api.js";
 import TablePagination from "../../components/TablePagination.vue";
+import DailyMetricsChart from "../../components/DailyMetricsChart.vue";
 import { usePagination } from "../../composables/usePagination.js";
 import {
   BarChart3Icon,
@@ -248,6 +235,11 @@ const error = ref("");
 
 const articles = computed(() => metrics.value?.byArticle ?? []);
 const paths = computed(() => metrics.value?.byPath ?? []);
+const chartRows = computed(() => (metrics.value?.byDay ?? []).map(row => ({
+  date: String(row.day).slice(0, 10),
+  values: [row.views, row.clicks],
+  extra: `CTR ${ctr(row.clicks, row.views)}`,
+})));
 
 // El referrer de una navegación dentro del propio sitio no es una fuente de tráfico:
 // se marca para no confundirlo con visitas nuevas.
@@ -309,11 +301,6 @@ function formatNumber(value) {
   return new Intl.NumberFormat("es-ES").format(value ?? 0);
 }
 
-function barHeight(value) {
-  const max = Math.max(1, ...(metrics.value?.byDay || []).map((d) => Math.max(d.views, d.clicks)));
-  return `${Math.max(3, Math.round((value / max) * 100))}%`;
-}
-
 onMounted(() => load(30));
 </script>
 
@@ -342,11 +329,13 @@ onMounted(() => load(30));
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .range-picker {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .range-btn {
@@ -419,58 +408,6 @@ onMounted(() => load(30));
 .text-purple { color: #a855f7; }
 .text-orange { color: #f59e0b; }
 .text-green { color: #22c55e; }
-
-.chart-legend {
-  display: flex;
-  gap: 14px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  display: inline-block;
-}
-
-.swatch-views { background: rgba(176, 85, 47, 0.35); }
-.swatch-clicks { background: var(--primary); }
-
-.metrics-chart {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 140px;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--background);
-}
-
-.chart-col {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 2px;
-  height: 100%;
-}
-
-.bar {
-  width: 45%;
-  max-width: 14px;
-  border-radius: 3px 3px 0 0;
-}
-
-.bar-views { background: rgba(176, 85, 47, 0.35); }
-.bar-clicks { background: var(--primary); }
 
 .panel-grid {
   display: grid;

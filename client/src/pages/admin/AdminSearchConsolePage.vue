@@ -95,110 +95,8 @@
               <BarChart3Icon :size="18" class="text-blue" />
               <h4>Evolución diaria</h4>
             </div>
-            <div class="chart-legend">
-              <button
-                class="legend-item"
-                :class="{ muted: !showImpressions }"
-                :aria-pressed="showImpressions"
-                @click="showImpressions = !showImpressions"
-              ><i class="swatch swatch-impressions"></i> Impresiones <small>eje izq.</small></button>
-              <button
-                class="legend-item"
-                :class="{ muted: !showClicks }"
-                :aria-pressed="showClicks"
-                @click="showClicks = !showClicks"
-              ><i class="swatch swatch-clicks"></i> Clics <small>eje der.</small></button>
-            </div>
           </div>
-          <div
-            v-if="chart.points.length"
-            class="metrics-chart"
-            @pointerleave="activeChartIndex = null"
-          >
-            <svg
-              class="chart-svg"
-              :viewBox="`0 0 ${chart.width} ${chart.height}`"
-              role="img"
-              aria-labelledby="gsc-chart-title gsc-chart-description"
-            >
-              <title id="gsc-chart-title">Evolución diaria del rendimiento en Google</title>
-              <desc id="gsc-chart-description">Impresiones en el eje izquierdo y clics en el eje derecho.</desc>
-
-              <g class="chart-grid">
-                <g v-for="line in chart.grid" :key="line.y">
-                  <line :x1="chart.left" :x2="chart.right" :y1="line.y" :y2="line.y" />
-                  <text class="axis-label axis-left" :x="chart.left - 12" :y="line.y + 4">{{ line.impressions }}</text>
-                  <text class="axis-label axis-right" :x="chart.right + 12" :y="line.y + 4">{{ line.clicks }}</text>
-                </g>
-              </g>
-
-              <g class="chart-dates">
-                <text
-                  v-for="tick in chart.dateTicks"
-                  :key="tick.date"
-                  class="axis-label"
-                  :x="tick.x"
-                  :y="chart.height - 10"
-                  :text-anchor="tick.anchor"
-                >{{ tick.label }}</text>
-              </g>
-
-              <path v-if="showImpressions" class="impressions-area" :d="chart.impressionsArea" />
-              <path v-if="showImpressions" class="chart-line impressions-line" :d="chart.impressionsPath" />
-              <path v-if="showClicks" class="chart-line clicks-line" :d="chart.clicksPath" />
-
-              <g v-if="activeChartPoint" class="chart-active" aria-hidden="true">
-                <line
-                  :x1="activeChartPoint.x"
-                  :x2="activeChartPoint.x"
-                  :y1="chart.top"
-                  :y2="chart.bottom"
-                />
-                <circle
-                  v-if="showImpressions"
-                  class="point-impressions"
-                  :cx="activeChartPoint.x"
-                  :cy="activeChartPoint.yImpressions"
-                  r="6"
-                />
-                <circle
-                  v-if="showClicks"
-                  class="point-clicks"
-                  :cx="activeChartPoint.x"
-                  :cy="activeChartPoint.yClicks"
-                  r="6"
-                />
-              </g>
-
-              <rect
-                v-for="(point, index) in chart.points"
-                :key="point.date"
-                class="chart-hit-area"
-                :x="point.hitX"
-                :y="chart.top"
-                :width="point.hitWidth"
-                :height="chart.bottom - chart.top"
-                tabindex="0"
-                :aria-label="chartPointLabel(point)"
-                @pointerenter="activeChartIndex = index"
-                @pointerdown="activeChartIndex = index"
-                @focus="activeChartIndex = index"
-                @blur="activeChartIndex = null"
-              />
-            </svg>
-
-            <div
-              v-if="activeChartPoint"
-              class="chart-tooltip"
-              :style="{ left: chartTooltipLeft }"
-              aria-hidden="true"
-            >
-              <strong>{{ formatChartDate(activeChartPoint.date, true) }}</strong>
-              <span><i class="swatch swatch-impressions"></i>{{ formatNumber(activeChartPoint.impressions) }} impresiones</span>
-              <span><i class="swatch swatch-clicks"></i>{{ formatNumber(activeChartPoint.clicks) }} clics</span>
-              <small>CTR {{ pct(activeChartPoint.ctr) }} · Posición {{ formatPosition(activeChartPoint.position) }}</small>
-            </div>
-          </div>
+          <DailyMetricsChart v-if="summary.byDay.length" :rows="chartRows" :labels="['Impresiones', 'Clics']" />
           <p v-else class="text-muted metrics-empty">Sin datos en este periodo.</p>
         </section>
 
@@ -419,6 +317,7 @@
 import { computed, onMounted, ref } from "vue";
 import api from "../../api.js";
 import TablePagination from "../../components/TablePagination.vue";
+import DailyMetricsChart from "../../components/DailyMetricsChart.vue";
 import { usePagination } from "../../composables/usePagination.js";
 import { useToastStore } from "../../stores/toast.js";
 import {
@@ -447,21 +346,15 @@ const inspectMessage = ref("");
 const coverageFilter = ref("all");
 const coverageSearch = ref("");
 const requestingArticleId = ref(null);
-const showImpressions = ref(true);
-const showClicks = ref(true);
-const activeChartIndex = ref(null);
 
 const queries = computed(() => summary.value?.byQuery ?? []);
 const pages = computed(() => summary.value?.byPage ?? []);
 
-const chart = computed(() => buildChart(summary.value?.byDay ?? []));
-const activeChartPoint = computed(() => (
-  activeChartIndex.value === null ? null : chart.value.points[activeChartIndex.value] ?? null
-));
-const chartTooltipLeft = computed(() => {
-  if (!activeChartPoint.value) return "50%";
-  return `clamp(92px, ${(activeChartPoint.value.x / chart.value.width) * 100}%, calc(100% - 92px))`;
-});
+const chartRows = computed(() => (summary.value?.byDay ?? []).map(row => ({
+  date: row.date,
+  values: [row.impressions, row.clicks],
+  extra: `CTR ${pct(row.ctr)} · Posición ${formatPosition(row.position)}`,
+})));
 
 // Un artículo está "indexado" si el veredicto de Google es PASS. El resto se
 // reparte entre nunca comprobados y comprobados sin indexar.
@@ -655,75 +548,6 @@ function shortPath(url) {
   }
 }
 
-function buildChart(rows) {
-  const width = 1000;
-  const height = 280;
-  const left = 48;
-  const right = 952;
-  const top = 18;
-  const bottom = 240;
-  const impressionsMax = niceMax(Math.max(0, ...rows.map((row) => Number(row.impressions) || 0)));
-  const clicksMax = niceMax(Math.max(0, ...rows.map((row) => Number(row.clicks) || 0)));
-  const timestamps = rows.map((row) => Date.parse(`${row.date}T12:00:00`));
-  const firstTimestamp = timestamps[0] || 0;
-  const timeSpan = (timestamps.at(-1) || firstTimestamp) - firstTimestamp;
-  const y = (value, max) => bottom - ((Number(value) || 0) / max) * (bottom - top);
-  const points = rows.map((row, index) => ({
-    ...row,
-    x: timeSpan > 0 ? left + ((timestamps[index] - firstTimestamp) / timeSpan) * (right - left) : (left + right) / 2,
-    yImpressions: y(row.impressions, impressionsMax),
-    yClicks: y(row.clicks, clicksMax),
-  }));
-  for (const [index, point] of points.entries()) {
-    const previousX = points[index - 1]?.x ?? left;
-    const nextX = points[index + 1]?.x ?? right;
-    point.hitX = index === 0 ? left : (previousX + point.x) / 2;
-    point.hitWidth = index === points.length - 1 ? right - point.hitX : (point.x + nextX) / 2 - point.hitX;
-  }
-  const pathFor = (key) => points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point[key]}`).join(" ");
-  const impressionsPath = pathFor("yImpressions");
-  const grid = Array.from({ length: 5 }, (_, index) => {
-    const ratio = index / 4;
-    return {
-      y: top + ratio * (bottom - top),
-      impressions: Math.round(impressionsMax * (1 - ratio)),
-      clicks: formatAxisNumber(clicksMax * (1 - ratio)),
-    };
-  });
-  const tickIndexes = [...new Set(Array.from({ length: Math.min(6, rows.length) }, (_, index) => (
-    Math.round(index * (rows.length - 1) / Math.max(1, Math.min(6, rows.length) - 1))
-  )))];
-  const dateTicks = tickIndexes.map((index, tickIndex) => ({
-    date: points[index].date,
-    x: points[index].x,
-    label: formatChartDate(points[index].date),
-    anchor: tickIndex === 0 ? "start" : tickIndex === tickIndexes.length - 1 ? "end" : "middle",
-  }));
-  return {
-    width, height, left, right, top, bottom, points, grid, dateTicks,
-    impressionsPath,
-    clicksPath: pathFor("yClicks"),
-    impressionsArea: points.length ? `${impressionsPath} L ${points.at(-1).x} ${bottom} L ${points[0].x} ${bottom} Z` : "",
-  };
-}
-
-function niceMax(value) {
-  if (value <= 1) return 1;
-  const magnitude = 10 ** Math.floor(Math.log10(value));
-  return Math.ceil(value / magnitude) * magnitude;
-}
-
-function formatAxisNumber(value) {
-  return Number.isInteger(value) ? value : value.toFixed(1);
-}
-
-function formatChartDate(value, long = false) {
-  const date = new Date(`${value}T12:00:00`);
-  return date.toLocaleDateString("es-ES", long
-    ? { weekday: "short", day: "numeric", month: "short" }
-    : { day: "numeric", month: "short" });
-}
-
 function formatPosition(value) {
   return Number(value) ? Number(value).toFixed(1) : "—";
 }
@@ -734,10 +558,6 @@ function normalizeSearch(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
-}
-
-function chartPointLabel(point) {
-  return `${formatChartDate(point.date, true)}: ${point.impressions} impresiones, ${point.clicks} clics, CTR ${pct(point.ctr)}, posición ${formatPosition(point.position)}`;
 }
 
 onMounted(loadAll);
@@ -773,7 +593,7 @@ onMounted(loadAll);
   flex-wrap: wrap;
 }
 
-.range-picker { display: flex; gap: 6px; }
+.range-picker { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .range-btn {
   padding: 5px 12px !important;
@@ -880,121 +700,6 @@ onMounted(loadAll);
 .text-green { color: #22c55e; }
 .text-danger { color: #ef4444; }
 
-.chart-legend {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 9px !important;
-  border: 1px solid var(--border);
-  border-radius: 99px;
-  background: var(--background);
-  color: var(--text);
-  font-size: 12px !important;
-}
-
-.legend-item small { color: var(--text-muted); font-size: 10px; }
-.legend-item.muted { opacity: 0.45; }
-
-.swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  display: inline-block;
-}
-
-.swatch-impressions { background: rgba(176, 85, 47, 0.35); }
-.swatch-clicks { background: var(--primary); }
-
-.metrics-chart {
-  position: relative;
-  min-height: 280px;
-  padding: 8px 12px 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--background);
-  overflow: hidden;
-}
-
-.chart-svg {
-  display: block;
-  width: 100%;
-  height: 270px;
-  overflow: visible;
-}
-
-.chart-grid line {
-  stroke: var(--border);
-  stroke-width: 1;
-  stroke-dasharray: 3 5;
-}
-
-.axis-label {
-  fill: var(--text-muted);
-  font-family: 'Outfit', sans-serif;
-  font-size: 11px;
-}
-
-.axis-left { text-anchor: end; }
-.axis-right { text-anchor: start; }
-
-.impressions-area { fill: rgba(176, 85, 47, 0.1); }
-
-.chart-line {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.impressions-line { stroke: #c9937d; stroke-width: 2.5; }
-.clicks-line { stroke: var(--primary); stroke-width: 3; }
-
-.chart-active line {
-  stroke: var(--text-muted);
-  stroke-width: 1;
-  stroke-dasharray: 4 4;
-  vector-effect: non-scaling-stroke;
-}
-
-.chart-active circle {
-  stroke: var(--background);
-  stroke-width: 3;
-  vector-effect: non-scaling-stroke;
-}
-
-.point-impressions { fill: #c9937d; }
-.point-clicks { fill: var(--primary); }
-
-.chart-hit-area { fill: transparent; cursor: crosshair; }
-.chart-hit-area:focus { outline: none; }
-
-.chart-tooltip {
-  position: absolute;
-  z-index: 2;
-  top: 18px;
-  width: 184px;
-  padding: 10px 12px;
-  transform: translateX(-50%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  pointer-events: none;
-}
-
-.chart-tooltip strong,
-.chart-tooltip span,
-.chart-tooltip small { display: flex; align-items: center; gap: 7px; }
-.chart-tooltip strong { margin-bottom: 7px; font-size: 13px; text-transform: capitalize; }
-.chart-tooltip span { margin-top: 4px; font-size: 12px; }
-.chart-tooltip small { margin-top: 7px; color: var(--text-muted); font-size: 10px; }
-
 .panel-grid {
   display: grid;
   /* minmax(0, 1fr) por lo mismo que en Analítica: con 1fr el mínimo es el contenido
@@ -1087,14 +792,6 @@ onMounted(loadAll);
   .panel .table th,
   .panel .table td { padding: 10px 8px; }
   .truncate { max-width: none; }
-  .chart-legend { width: 100%; }
-  .legend-item { flex: 1; justify-content: center; }
-  .legend-item small { display: none; }
   .coverage-search { width: 100%; min-width: 0; }
-  .metrics-chart { min-height: 140px; padding-inline: 4px; }
-  .chart-svg { height: 125px; }
-  .axis-label { font-size: 24px; }
-  .chart-dates text:nth-child(even) { display: none; }
-  .chart-tooltip { top: 8px; }
 }
 </style>
