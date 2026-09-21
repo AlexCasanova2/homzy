@@ -210,7 +210,6 @@ async function loadRelated(articleId, requestId) {
 
 async function loadArticle(slug) {
   const currentRequest = ++requestNumber;
-  clearMeta();
   article.value = null;
   toc.value = [];
   relatedArticles.value = [];
@@ -222,6 +221,9 @@ async function loadArticle(slug) {
     const { data } = await api.get(`/articles/${slug}`);
     if (currentRequest !== requestNumber) return;
     article.value = data;
+    // Mantén la canónica renderizada por el servidor hasta tener listas las metas
+    // nuevas; así nunca queda una ventana sin canonical durante la hidratación.
+    clearMeta();
     updateMeta(data);
     trackEvent({ type: "view", path: route.fullPath, articleId: data.id, referrer: document.referrer || null });
     // El contenido solo se monta cuando loading pasa a false; hay que hacerlo antes del nextTick.

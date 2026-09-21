@@ -280,7 +280,16 @@
                 <td>
                   <span class="badge" :class="badgeClass(row)">{{ stateLabel(row) }}</span>
                   <small v-if="row.coverageState && row.verdict !== 'PASS'" class="block text-muted">
-                    {{ row.coverageState }}
+                    {{ awaitingRecrawl(row) ? `Estado anterior: ${row.coverageState}` : row.coverageState }}
+                  </small>
+                  <small v-if="row.currentCanonical" class="block text-muted">
+                    Canónica actual: {{ shortPath(row.currentCanonical) }}
+                  </small>
+                  <small v-if="row.userCanonical && row.userCanonical !== row.currentCanonical" class="block text-muted">
+                    Detectada en el rastreo: {{ shortPath(row.userCanonical) }}
+                  </small>
+                  <small v-if="row.googleCanonical && row.googleCanonical !== row.userCanonical" class="block text-muted">
+                    Elegida por Google: {{ shortPath(row.googleCanonical) }}
                   </small>
                 </td>
                 <td class="text-muted">{{ formatDate(row.lastCrawlTime) }}</td>
@@ -515,9 +524,15 @@ async function resubmitSitemap() {
 function stateLabel(row) {
   if (!row.checkedAt && !row.verdict) return "Sin comprobar";
   if (row.verdict === "PASS") return "Indexado";
+  if (awaitingRecrawl(row)) return "Pendiente de nuevo rastreo";
   if (row.verdict === "NEUTRAL") return "Conocido, sin indexar";
   if (row.verdict === "FAIL") return "Con error";
   return row.coverageState || "Desconocido";
+}
+
+function awaitingRecrawl(row) {
+  if (!row.lastCrawlTime || !row.updatedAt || row.verdict === "PASS") return false;
+  return Date.parse(row.updatedAt) > Date.parse(row.lastCrawlTime);
 }
 
 function badgeClass(row) {

@@ -383,14 +383,17 @@ app.get("/api/search-console/coverage", authenticate, ah(async (req, res) => {
   await ensureGscTable();
   const origin = searchConsole.publicOrigin(siteOrigin(req));
   const rows = await all(
-    `SELECT a.id, a.title, a.slug, a.published_at,
+    `SELECT a.id, a.title, a.slug, a.published_at, a.updated_at, a.canonical_url,
             s.verdict, s.coverage_state, s.robots_txt_state, s.indexing_state,
             s.page_fetch_state, s.last_crawl_time, s.google_canonical, s.user_canonical,
             s.rich_results, s.checked_at
      FROM articles a
-     LEFT JOIN gsc_url_status s ON s.article_id = a.id
+     LEFT JOIN gsc_url_status s
+       ON s.article_id = a.id
+      AND s.url = $1 || '/analisis/' || a.slug
      WHERE a.status = 'published'
-     ORDER BY a.published_at DESC NULLS LAST`
+     ORDER BY a.published_at DESC NULLS LAST`,
+    [origin]
   );
 
   res.json({
@@ -403,6 +406,8 @@ app.get("/api/search-console/coverage", authenticate, ah(async (req, res) => {
         slug: r.slug,
         url,
         publishedAt: r.published_at,
+        updatedAt: r.updated_at,
+        currentCanonical: r.canonical_url || url,
         verdict: r.verdict,
         coverageState: r.coverage_state,
         robotsTxtState: r.robots_txt_state,
@@ -444,11 +449,13 @@ app.post("/api/search-console/inspect", authenticate, requireGsc, gscLimiter, ah
       )
     : await all(
         `SELECT a.id, a.slug FROM articles a
-         LEFT JOIN gsc_url_status s ON s.article_id = a.id
-         WHERE a.status = 'published' AND (s.checked_at IS NULL OR s.checked_at < $1)
+         LEFT JOIN gsc_url_status s
+           ON s.article_id = a.id
+          AND s.url = $1 || '/analisis/' || a.slug
+         WHERE a.status = 'published' AND (s.checked_at IS NULL OR s.checked_at < $2)
          ORDER BY s.checked_at ASC NULLS FIRST, a.published_at DESC NULLS LAST
-         LIMIT $2`,
-        [staleBefore, limit]
+         LIMIT $3`,
+        [origin, staleBefore, limit]
       );
 
   const results = [];
