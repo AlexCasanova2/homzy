@@ -1517,6 +1517,31 @@ app.get("/buscar", ah(async (req, res) => {
   });
 }));
 
+const LEGAL_PAGES = {
+  "/privacidad": {
+    title: "Política de Privacidad",
+    description: "Cómo trata Homzy los datos personales, las métricas, la publicidad y las suscripciones.",
+  },
+  "/cookies": {
+    title: "Política de Cookies",
+    description: "Cookies utilizadas por Homzy, sus finalidades y cómo aceptar, rechazar o retirar el consentimiento.",
+  },
+  "/terminos": {
+    title: "Términos de Servicio",
+    description: "Condiciones de uso, afiliación y responsabilidades aplicables al contenido de Homzy.",
+  },
+};
+
+app.get(Object.keys(LEGAL_PAGES), ah(async (req, res) => {
+  const page = LEGAL_PAGES[req.path];
+  await sendShell(req, res, {
+    title: `${page.title} | ${SITE_NAME}`,
+    description: page.description,
+    canonical: `${siteOrigin(req)}${req.path}`,
+    appHtml: `<main class="section"><div class="container"><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.description)}</p></div></main>`,
+  });
+}));
+
 app.get("/sitemap.xml", ah(async (req, res) => {
   const origin = siteOrigin(req);
 

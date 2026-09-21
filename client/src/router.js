@@ -29,6 +29,7 @@ import { trackEvent } from "./track.js";
 const routes = [
   { path: "/login", component: LoginPage },
   { path: "/privacidad", component: LegalPage, props: { title: "Política de Privacidad" } },
+  { path: "/cookies", component: LegalPage, props: { title: "Política de Cookies" } },
   { path: "/terminos", component: LegalPage, props: { title: "Términos de Servicio" } },
   { path: "/", component: PublicHome },
   { path: "/analisis/:slug", component: PublicArticle },

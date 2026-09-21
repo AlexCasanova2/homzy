@@ -5,27 +5,50 @@
          1024 bytes); antes lo precedía el script de Google Analytics. -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+
+      // Consent Mode v2: ningún almacenamiento de analítica o publicidad se
+      // considera autorizado hasta que la CMP certificada de Google lo confirme.
+      gtag('consent', 'default', {
+        ad_storage: 'denied',
+        analytics_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        wait_for_update: 500
+      });
+      gtag('set', 'ads_data_redaction', true);
+
+      window.googlefc = window.googlefc || {};
+      window.googlefc.callbackQueue = window.googlefc.callbackQueue || [];
+      window.googlefc.callbackQueue.push({
+        CONSENT_MODE_DATA_READY: function () {
+          var consent = window.googlefc.getGoogleConsentModeValues();
+          gtag('consent', 'update', consent);
+          window.homzyConsent = consent;
+
+          // Modo básico para Analytics: la librería no se descarga hasta que el
+          // usuario consiente expresamente el almacenamiento de analítica.
+          if (consent.analytics_storage === 'granted' && !window.homzyGaLoaded) {
+            window.homzyGaLoaded = true;
+            gtag('js', new Date());
+            gtag('config', 'G-4Q8NRYW0VE');
+            var script = document.createElement('script');
+            script.async = true;
+            script.src = 'https://www.googletagmanager.com/gtag/js?id=G-4Q8NRYW0VE';
+            document.head.appendChild(script);
+          }
+
+          window.dispatchEvent(new CustomEvent('homzy:consent-ready', { detail: consent }));
+        }
+      });
+    </script>
     <script
       async
       src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4195717772155028"
       crossorigin="anonymous"
     ></script>
-    <!-- Google tag (gtag.js), diferido: la librería pesa 161 KB — tanto como toda la app
-         tras el code-splitting — y cargaba la primera de todo el head, compitiendo por red
-         y CPU en plena ruta crítica. gtag() encola en dataLayer hasta que la librería
-         llega tras el load, así que no se pierde ningún evento; solo se registran tarde. -->
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-4Q8NRYW0VE');
-      window.addEventListener('load', function () {
-        var s = document.createElement('script');
-        s.async = true;
-        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-4Q8NRYW0VE';
-        document.head.appendChild(s);
-      });
-    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

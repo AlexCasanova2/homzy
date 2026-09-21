@@ -401,7 +401,7 @@ function trackAffiliateClick(event) {
   const affiliateLinks = [...articleContent.value.querySelectorAll("a[href]")].filter(isAffiliateLink);
   const clickContext = link.closest("table") ? "comparison_table" : link.classList.contains("btn-buy") ? "cta" : "article_body";
   trackEvent({ type: "affiliate_click", path: route.fullPath, articleId: article.value.id, context: clickContext });
-  if (typeof window.gtag !== "function") return;
+  if (typeof window.gtag !== "function" || window.homzyConsent?.analytics_storage !== "granted") return;
   window.gtag("event", "affiliate_click", {
     article_id: article.value.id,
     article_slug: article.value.slug,

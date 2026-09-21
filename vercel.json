@@ -18,8 +18,9 @@
     { "source": "/buscar", "destination": "/api/index" },
     { "source": "/", "destination": "/index.html" },
     { "source": "/login", "destination": "/index.html" },
-    { "source": "/privacidad", "destination": "/index.html" },
-    { "source": "/terminos", "destination": "/index.html" },
+    { "source": "/privacidad", "destination": "/api/index" },
+    { "source": "/cookies", "destination": "/api/index" },
+    { "source": "/terminos", "destination": "/api/index" },
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/admin/:path*", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/api/index" }

@@ -19,7 +19,9 @@
           <h4>Lector</h4>
           <ul class="footer-links">
             <li><RouterLink to="/privacidad">Privacidad</RouterLink></li>
+            <li><RouterLink to="/cookies">Cookies</RouterLink></li>
             <li><RouterLink to="/terminos">Términos</RouterLink></li>
+            <li><button type="button" class="footer-link-button" @click="configureCookies">Configurar cookies</button></li>
             <li><RouterLink to="/login" v-if="!auth.isAuthenticated">Acceso Staff</RouterLink></li>
           </ul>
         </div>
@@ -50,6 +52,7 @@ import ToastContainer from "./components/ToastContainer.vue";
 import { useAuthStore } from "./stores/auth.js";
 import { useToastStore } from "./stores/toast.js";
 import api from "./api.js";
+import { openCookieSettings } from "./consent.js";
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -67,6 +70,12 @@ async function subscribe() {
      toast.error("Error al suscribirse");
   }
 }
+
+function configureCookies() {
+  if (!openCookieSettings()) {
+    toast.info("La configuración de cookies estará disponible cuando Google active el mensaje de consentimiento.");
+  }
+}
 </script>
 
 <style>
@@ -80,5 +89,7 @@ async function subscribe() {
 /* Los estilos de la cabecera viven en SiteHeader.vue. */
 .header-actions { display: flex; align-items: center; gap: 8px; }
 .affiliate-footer { grid-column: 1 / -1; color: #cbd5e1; font-size: 12px; padding-top: 8px; }
+.footer-link-button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.footer-link-button:hover { color: white; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 </style>
