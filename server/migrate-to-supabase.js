@@ -36,6 +36,7 @@ const TABLES = [
   { name: "article_categories", columns: ["article_id", "category_id"] },
   { name: "article_tags", columns: ["article_id", "tag_id"] },
   { name: "newsletter_subscribers", columns: ["id", "email", "created_at"] },
+  { name: "roadmap_items", columns: ["id", "phase", "title", "description", "status", "priority", "due_date", "sort_order", "created_at", "updated_at"] },
 ];
 
 async function main() {
@@ -44,6 +45,11 @@ async function main() {
   await pool.query(schema);
 
   for (const table of TABLES) {
+    const exists = sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table.name);
+    if (!exists) {
+      console.log(`${table.name}: no existe en SQLite, omitida`);
+      continue;
+    }
     const rows = sqlite.prepare(`SELECT * FROM ${table.name}`).all();
     let copied = 0;
     for (const row of rows) {

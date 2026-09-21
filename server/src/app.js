@@ -269,6 +269,125 @@ app.get("/api/metrics/summary", authenticate, ah(async (req, res) => {
   res.json({ days, totals, byDay, byArticle, byPath, byReferrer, byContext });
 }));
 
+// -- ROADMAP SEO --
+// schema.pg.sql no se ejecuta en cada despliegue, por lo que se provisiona también
+// de forma perezosa para instalaciones de Supabase ya existentes.
+let roadmapTableReady = false;
+async function ensureRoadmapTable() {
+  if (roadmapTableReady) return;
+  await query(`CREATE TABLE IF NOT EXISTS roadmap_items (
+    id TEXT PRIMARY KEY,
+    phase TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    priority TEXT NOT NULL DEFAULT 'medium',
+    due_date TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`);
+  await query("CREATE INDEX IF NOT EXISTS idx_roadmap_items_phase_order ON roadmap_items(phase, sort_order)");
+  roadmapTableReady = true;
+}
+
+function isCalendarDate(value) {
+  if (value == null) return true;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+const roadmapItemSchema = z.object({
+  phase: z.enum(["foundation", "growth", "authority", "ongoing"]),
+  title: z.string().trim().min(3).max(180),
+  description: z.string().trim().max(3000).optional().default(""),
+  status: z.enum(["pending", "in_progress", "completed", "blocked"]),
+  priority: z.enum(["high", "medium", "low"]),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isCalendarDate).nullable().optional(),
+  sortOrder: z.number().int().min(0).max(100000).optional(),
+});
+
+function roadmapResponse(row) {
+  return {
+    id: row.id,
+    phase: row.phase,
+    title: row.title,
+    description: row.description || "",
+    status: row.status,
+    priority: row.priority,
+    dueDate: row.due_date || null,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+app.get("/api/roadmap", authenticate, ah(async (_req, res) => {
+  await ensureRoadmapTable();
+  const rows = await all(
+    `SELECT * FROM roadmap_items
+     ORDER BY CASE phase
+       WHEN 'foundation' THEN 1 WHEN 'growth' THEN 2 WHEN 'authority' THEN 3 ELSE 4
+     END, sort_order, created_at`
+  );
+  res.json(rows.map(roadmapResponse));
+}));
+
+app.post("/api/roadmap", authenticate, ah(async (req, res) => {
+  const parsed = roadmapItemSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Datos del objetivo no válidos" });
+  await ensureRoadmapTable();
+
+  const id = nanoid();
+  const now = nowIso();
+  const nextOrder = parsed.data.sortOrder ?? Number((await one(
+    "SELECT coalesce(max(sort_order), -1) + 1 AS value FROM roadmap_items WHERE phase = $1",
+    [parsed.data.phase]
+  ))?.value || 0);
+  const row = await one(
+    `INSERT INTO roadmap_items
+     (id, phase, title, description, status, priority, due_date, sort_order, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     RETURNING *`,
+    [id, parsed.data.phase, parsed.data.title, parsed.data.description || null, parsed.data.status,
+      parsed.data.priority, parsed.data.dueDate || null, nextOrder, now, now]
+  );
+  res.status(201).json(roadmapResponse(row));
+}));
+
+app.put("/api/roadmap/:id", authenticate, ah(async (req, res) => {
+  const parsed = roadmapItemSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Datos del objetivo no válidos" });
+  await ensureRoadmapTable();
+
+  const existing = await one("SELECT phase, sort_order FROM roadmap_items WHERE id = $1", [req.params.id]);
+  if (!existing) return res.status(404).json({ error: "Objetivo no encontrado" });
+  const sortOrder = parsed.data.phase === existing.phase
+    ? (parsed.data.sortOrder ?? existing.sort_order)
+    : Number((await one(
+        "SELECT coalesce(max(sort_order), -1) + 1 AS value FROM roadmap_items WHERE phase = $1",
+        [parsed.data.phase]
+      ))?.value || 0);
+  const row = await one(
+    `UPDATE roadmap_items
+     SET phase = $1, title = $2, description = $3, status = $4, priority = $5,
+         due_date = $6, sort_order = $7, updated_at = $8
+     WHERE id = $9 RETURNING *`,
+    [parsed.data.phase, parsed.data.title, parsed.data.description || null, parsed.data.status,
+      parsed.data.priority, parsed.data.dueDate || null, sortOrder,
+      nowIso(), req.params.id]
+  );
+  res.json(roadmapResponse(row));
+}));
+
+app.delete("/api/roadmap/:id", authenticate, ah(async (req, res) => {
+  await ensureRoadmapTable();
+  const result = await query("DELETE FROM roadmap_items WHERE id = $1", [req.params.id]);
+  if (!result.rowCount) return res.status(404).json({ error: "Objetivo no encontrado" });
+  res.status(204).end();
+}));
+
 // -- SEARCH CONSOLE --
 // Nota de diseño: no existe "enviar a indexar" por API para contenido editorial. La
 // Indexing API de Google solo admite JobPosting y BroadcastEvent; usarla para artículos

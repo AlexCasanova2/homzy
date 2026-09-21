@@ -40,6 +40,10 @@
           <span class="nav-icon"><MailIcon :size="20" /></span>
           <span>Newsletter</span>
         </RouterLink>
+        <RouterLink class="nav-item" :class="{ active: isActive('/admin/roadmap') }" to="/admin/roadmap" title="Roadmap">
+          <span class="nav-icon"><MapIcon :size="20" /></span>
+          <span>Roadmap</span>
+        </RouterLink>
       </nav>
 
       <div class="admin-footer">
@@ -80,6 +84,7 @@ import {
   FolderIcon, 
   ExternalLinkIcon,
   MailIcon,
+  MapIcon,
   SearchIcon,
   LogOutIcon
 } from "lucide-vue-next";
@@ -110,7 +115,8 @@ const currentPageTitle = computed(() => {
     '/admin/articles': 'Gestión de Artículos',
     '/admin/products': 'Catálogo de Productos',
     '/admin/categories': 'Taxonomías',
-    '/admin/newsletter': 'Gestión de Newsletter'
+    '/admin/newsletter': 'Gestión de Newsletter',
+    '/admin/roadmap': 'Roadmap SEO'
   };
   return map[route.path] || 'Admin';
 });

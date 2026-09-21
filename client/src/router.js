@@ -17,6 +17,7 @@ const AdminProductsPage = () => import("./pages/admin/AdminProductsPage.vue");
 const AdminArticlesPage = () => import("./pages/admin/AdminArticlesPage.vue");
 const AdminCategoriesPage = () => import("./pages/admin/AdminCategoriesPage.vue");
 const AdminNewsletterPage = () => import("./pages/admin/AdminNewsletterPage.vue");
+const AdminRoadmapPage = () => import("./pages/admin/AdminRoadmapPage.vue");
 const LegalPage = () => import("./pages/LegalPage.vue");
 const NotFoundPage = () => import("./pages/NotFoundPage.vue");
 const LoginPage = () => import("./pages/LoginPage.vue");
@@ -49,6 +50,7 @@ const routes = [
       { path: "articles", component: AdminArticlesPage },
       { path: "categories", component: AdminCategoriesPage },
       { path: "newsletter", component: AdminNewsletterPage },
+      { path: "roadmap", component: AdminRoadmapPage },
     ],
   },
   // Catch-all 404

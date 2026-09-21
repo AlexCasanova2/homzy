@@ -97,5 +97,19 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS roadmap_items (
+  id TEXT PRIMARY KEY,
+  phase TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  priority TEXT NOT NULL DEFAULT 'medium',
+  due_date TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_status_scheduled_at ON articles(status, scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_roadmap_items_phase_order ON roadmap_items(phase, sort_order);

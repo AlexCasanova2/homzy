@@ -1468,8 +1468,19 @@ label {
 
   .admin-nav {
     flex-direction: row;
-    justify-content: space-around;
+    justify-content: flex-start;
     gap: 0;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .admin-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-nav .nav-item {
+    flex: 0 0 44px;
   }
 
   .admin-footer {
@@ -1477,6 +1488,14 @@ label {
     align-items: center;
     margin-top: 0;
     gap: 0;
+  }
+
+  .admin-footer > a {
+    display: none;
+  }
+
+  .admin-footer .logout-btn {
+    width: 44px;
   }
 
   .nav-item {
