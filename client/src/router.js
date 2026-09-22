@@ -19,6 +19,7 @@ const AdminCategoriesPage = () => import("./pages/admin/AdminCategoriesPage.vue"
 const AdminNewsletterPage = () => import("./pages/admin/AdminNewsletterPage.vue");
 const AdminRoadmapPage = () => import("./pages/admin/AdminRoadmapPage.vue");
 const LegalPage = () => import("./pages/LegalPage.vue");
+const EditorialInfoPage = () => import("./pages/EditorialInfoPage.vue");
 const NotFoundPage = () => import("./pages/NotFoundPage.vue");
 const LoginPage = () => import("./pages/LoginPage.vue");
 import { useAuthStore } from "./stores/auth.js";
@@ -32,6 +33,9 @@ const routes = [
   { path: "/privacidad", component: LegalPage, props: { title: "Política de Privacidad" } },
   { path: "/cookies", component: LegalPage, props: { title: "Política de Cookies" } },
   { path: "/terminos", component: LegalPage, props: { title: "Términos de Servicio" } },
+  { path: "/sobre", component: EditorialInfoPage },
+  { path: "/metodologia-editorial", component: EditorialInfoPage },
+  { path: "/autoria", component: EditorialInfoPage },
   { path: "/", component: PublicHome },
   { path: "/analisis/:slug", component: PublicArticle },
   { path: "/categorias", component: PublicCategories },

@@ -51,7 +51,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import api from "../api.js";
 
@@ -76,17 +76,24 @@ async function loadCategory() {
     const { data: cat } = await api.get(`/categories/slug/${slug}`);
     category.value = cat;
 
-    // Update SEO
-    document.title = (cat.seo_title || cat.name) + " | Homzy";
-    
-    // Meta Description
-    let metaDesc = document.querySelector('meta[name="description"]');
-    if (!metaDesc) {
-      metaDesc = document.createElement('meta');
-      metaDesc.name = "description";
-      document.head.appendChild(metaDesc);
-    }
-    metaDesc.content = cat.seo_description || cat.description || `Análisis y reseñas de ${cat.name}`;
+    clearMeta();
+    document.title = cat.seo_title || `${cat.name} | Homzy`;
+    const description = cat.seo_description || cat.description || `Análisis y reseñas de ${cat.name}`;
+    const canonical = `${window.location.origin}/categoria/${cat.slug}`;
+    addMeta("name", "description", description);
+    if (cat.seo_keywords) addMeta("name", "keywords", cat.seo_keywords);
+    addMeta("property", "og:title", document.title);
+    addMeta("property", "og:description", description);
+    addMeta("property", "og:type", "website");
+    addMeta("property", "og:url", canonical);
+    addMeta("name", "twitter:card", "summary");
+    addMeta("name", "twitter:title", document.title);
+    addMeta("name", "twitter:description", description);
+    const link = document.createElement("link");
+    link.rel = "canonical";
+    link.href = canonical;
+    link.dataset.homzyCategoryMeta = "true";
+    document.head.appendChild(link);
 
     // Load articles for this category
     const { data: arts } = await api.get(`/articles?categoryId=${cat.id}&status=published`);
@@ -99,8 +106,21 @@ async function loadCategory() {
   }
 }
 
+function addMeta(attribute, key, content) {
+  const element = document.createElement("meta");
+  element.setAttribute(attribute, key);
+  element.content = content;
+  element.dataset.homzyCategoryMeta = "true";
+  document.head.appendChild(element);
+}
+
+function clearMeta() {
+  document.querySelectorAll('[data-homzy-article-meta="true"], [data-homzy-category-meta="true"]').forEach((element) => element.remove());
+}
+
 watch(() => route.params.slug, loadCategory);
 onMounted(loadCategory);
+onUnmounted(clearMeta);
 </script>
 
 <style scoped>

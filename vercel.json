@@ -21,6 +21,9 @@
     { "source": "/privacidad", "destination": "/api/index" },
     { "source": "/cookies", "destination": "/api/index" },
     { "source": "/terminos", "destination": "/api/index" },
+    { "source": "/sobre", "destination": "/api/index" },
+    { "source": "/metodologia-editorial", "destination": "/api/index" },
+    { "source": "/autoria", "destination": "/api/index" },
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/admin/:path*", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/api/index" }

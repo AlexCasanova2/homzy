@@ -1420,7 +1420,7 @@ function extractFaq($) {
 app.get("/analisis/:slug", ah(async (req, res) => {
   const article = await one(
     `SELECT id, title, slug, seo_title, meta_description, seo_keywords, canonical_url,
-            image_url, html, category_id, product_id
+            image_url, html, category_id, product_id, created_at, updated_at, published_at
      FROM articles WHERE slug = $1 AND status = 'published'`,
     [req.params.slug]
   );
@@ -1458,6 +1458,24 @@ app.get("/analisis/:slug", ah(async (req, res) => {
     : null;
 
   const jsonLd = [];
+  jsonLd.push({
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: article.title,
+    ...(article.meta_description ? { description: article.meta_description } : {}),
+    ...(article.image_url ? { image: [article.image_url] } : {}),
+    datePublished: article.published_at || article.created_at,
+    dateModified: article.updated_at || article.published_at || article.created_at,
+    mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
+    inLanguage: "es-ES",
+    author: { "@type": "Organization", name: "Equipo editorial de Homzy", url: `${origin}/autoria` },
+    publisher: {
+      "@type": "Organization",
+      name: "Homzy",
+      url: `${origin}/`,
+      logo: { "@type": "ImageObject", url: `${origin}/apple-touch-icon.png` },
+    },
+  });
   if (product) {
     const price = parsePriceEuro(product.price);
     const images = safeJsonParse(product.images, []);
@@ -1477,7 +1495,7 @@ app.get("/analisis/:slug", ah(async (req, res) => {
         ? { aggregateRating: { "@type": "AggregateRating", ratingValue: product.rating, reviewCount: product.reviews, bestRating: 5 } }
         : {}),
       ...(price
-        ? { offers: { "@type": "Offer", price, priceCurrency: "EUR", availability: "https://schema.org/InStock", url: canonical } }
+        ? { offers: { "@type": "Offer", price, priceCurrency: "EUR", url: canonical } }
         : {}),
     });
   }
@@ -1525,9 +1543,10 @@ app.get("/analisis/:slug", ah(async (req, res) => {
       <div class="container">
         <nav class="breadcrumbs">${crumbs}</nav>
         <header class="article-header">
-          <h1 class="article-title">${escapeHtml(article.title)}</h1>
-          ${article.meta_description ? `<p class="article-subtitle">${escapeHtml(article.meta_description)}</p>` : ""}
-          <p class="affiliate-disclosure">Como Afiliado de Amazon, podemos recibir una comisión por las compras realizadas a través de los enlaces de este análisis, sin coste adicional para ti.</p>
+           <h1 class="article-title">${escapeHtml(article.title)}</h1>
+           ${article.meta_description ? `<p class="article-subtitle">${escapeHtml(article.meta_description)}</p>` : ""}
+           <p class="article-byline">Por <a href="/autoria">Equipo editorial de Homzy</a></p>
+           <p class="affiliate-disclosure">Como Afiliado de Amazon, podemos recibir una comisión por las compras realizadas a través de los enlaces de este análisis, sin coste adicional para ti.</p>
         </header>
         ${article.image_url ? `<div class="article-featured-image"><img src="${escapeHtml(article.image_url)}" alt="${escapeHtml(article.title)}" /></div>` : ""}
       </div>
@@ -1551,7 +1570,7 @@ app.get("/analisis/:slug", ah(async (req, res) => {
 }));
 
 app.get("/categoria/:slug", ah(async (req, res) => {
-  const category = await one("SELECT id, name, slug FROM categories WHERE slug = $1", [req.params.slug]);
+  const category = await one("SELECT id, name, slug, description, seo_title, seo_keywords, seo_description FROM categories WHERE slug = $1", [req.params.slug]);
   const origin = siteOrigin(req);
 
   if (!category) {
@@ -1585,15 +1604,17 @@ app.get("/categoria/:slug", ah(async (req, res) => {
   const appHtml = `
     <section class="section">
       <div class="container">
-        <nav class="breadcrumbs"><a href="/">Inicio</a> › <a href="/categorias">Categorías</a></nav>
-        <h1>${escapeHtml(category.name)}: análisis y opiniones</h1>
-        ${items ? `<ul>${items}</ul>` : `<p>Aún no hay análisis publicados en esta categoría.</p>`}
+         <nav class="breadcrumbs"><a href="/">Inicio</a> › <a href="/categorias">Categorías</a></nav>
+         <h1>${escapeHtml(category.name)}: análisis y opiniones</h1>
+         ${category.description ? `<p>${escapeHtml(category.description)}</p>` : ""}
+         ${items ? `<ul>${items}</ul>` : `<p>Aún no hay análisis publicados en esta categoría.</p>`}
       </div>
     </section>`;
 
   await sendShell(req, res, {
-    title: `${category.name}: análisis y opiniones | ${SITE_NAME}`,
-    description: `Todos nuestros análisis de ${category.name.toLowerCase()}: especificaciones, pros, contras y para quién es cada producto.`,
+    title: category.seo_title || `${category.name}: análisis y opiniones | ${SITE_NAME}`,
+    description: category.seo_description || category.description || `Todos nuestros análisis de ${category.name.toLowerCase()}: especificaciones, pros, contras y para quién es cada producto.`,
+    keywords: category.seo_keywords || "",
     canonical: `${origin}/categoria/${category.slug}`,
     appHtml,
   });
@@ -1661,11 +1682,58 @@ app.get(Object.keys(LEGAL_PAGES), ah(async (req, res) => {
   });
 }));
 
+const EDITORIAL_PAGES = {
+  "/sobre": {
+    title: "Sobre Homzy",
+    description: "Conoce quién publica Homzy, su propósito, independencia editorial y modelo de afiliación.",
+    sections: [
+      ["Qué hacemos", "Homzy es una publicación independiente en español que convierte fichas técnicas y mensajes comerciales en análisis claros sobre prestaciones, limitaciones y perfiles de uso."],
+      ["Independencia editorial", "No aceptamos pagos para alterar una conclusión o esconder una limitación. La selección y el enfoque de cada contenido responden a su utilidad para el lector y a información verificable."],
+      ["Cómo se financia Homzy", "Homzy participa en el Programa de Afiliados de Amazon. Podemos recibir una comisión por compras que cumplan los requisitos, sin coste adicional para el lector. La afiliación no determina nuestras conclusiones."],
+      ["Nuestro compromiso", "Diferenciamos las especificaciones del fabricante de las conclusiones editoriales, mostramos contras y no presentamos un análisis documental como una prueba física."],
+    ],
+  },
+  "/metodologia-editorial": {
+    title: "Metodología editorial",
+    description: "Cómo selecciona, verifica, compara y actualiza Homzy sus análisis de productos.",
+    sections: [
+      ["Selección de productos", "Elegimos productos relacionados con las áreas editoriales de Homzy y con dudas de compra concretas, valorando demanda, disponibilidad en España y alternativas comparables."],
+      ["Fuentes y verificación", "Partimos de la ficha vigente, las especificaciones, la documentación del fabricante cuando está disponible y datos públicos del catálogo. Si los datos disponibles se contradicen, lo indicamos o evitamos afirmar el dato."],
+      ["Análisis documental y prueba física", "La mayoría de contenidos son análisis documentales. Solo hablamos de experiencia directa o mediciones propias cuando disponemos de esa evidencia y lo explicamos expresamente."],
+      ["Comparaciones y conclusiones", "Comparamos productos reales mediante capacidad, cobertura, compatibilidad, mantenimiento, consumo, accesorios y limitaciones. No tratamos la popularidad como prueba de calidad ni presentamos estimaciones como mediciones propias."],
+      ["Herramientas y revisión", "Podemos usar automatización e inteligencia artificial para estructurar borradores y comprobar consistencia. Antes de publicar revisamos datos principales, enlaces y estructura; el servidor sanitiza el HTML y valida el enlace del producto."],
+      ["Actualizaciones", "Revisamos los contenidos cuando cambian disponibilidad, modelos o consultas de búsqueda. La fecha de modificación indica el último cambio guardado en la página, incluido texto o metadatos."],
+    ],
+  },
+  "/autoria": {
+    title: "Equipo editorial de Homzy",
+    description: "Responsabilidad, experiencia y criterios del equipo editorial que firma los análisis de Homzy.",
+    sections: [
+      ["Áreas de trabajo", "El equipo organiza y revisa información sobre climatización, limpieza, mascotas y dispositivos conectados para el hogar."],
+      ["Responsabilidades", "Revisamos que las afirmaciones relevantes se apoyen en los datos disponibles, separamos beneficios de mensajes promocionales e incluimos limitaciones y requisitos."],
+      ["Firma y transparencia", "Usamos una firma colectiva porque el proceso combina recopilación, estructuración y revisión. No atribuimos los textos a personas inventadas ni afirmamos haber probado un producto cuando el análisis es documental."],
+    ],
+  },
+};
+
+app.get(Object.keys(EDITORIAL_PAGES), ah(async (req, res) => {
+  const page = EDITORIAL_PAGES[req.path];
+  const sections = page.sections
+    .map(([heading, text]) => `<section><h2>${escapeHtml(heading)}</h2><p>${escapeHtml(text)}</p></section>`)
+    .join("\n");
+  await sendShell(req, res, {
+    title: `${page.title} | ${SITE_NAME}`,
+    description: page.description,
+    canonical: `${siteOrigin(req)}${req.path}`,
+    appHtml: `<main class="section"><div class="container"><article><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.description)}</p>${sections}<p>Contacto y correcciones: <a href="mailto:contacto@homzy.es">contacto@homzy.es</a>.</p></article></div></main>`,
+  });
+}));
+
 app.get("/sitemap.xml", ah(async (req, res) => {
   const origin = siteOrigin(req);
 
   const articles = await all(
-    `SELECT slug, published_at, created_at FROM articles
+    `SELECT slug, published_at, created_at, updated_at FROM articles
      WHERE status = 'published' AND slug IS NOT NULL
      ORDER BY coalesce(published_at, created_at) DESC`
   );
@@ -1673,7 +1741,7 @@ app.get("/sitemap.xml", ah(async (req, res) => {
   // Solo categorías con artículos publicados: una categoría vacía en el sitemap es una
   // página sin contenido que Google acaba marcando como de baja calidad.
   const categories = await all(
-    `SELECT c.slug, max(coalesce(a.published_at, a.created_at)) AS lastmod
+    `SELECT c.slug, max(coalesce(a.updated_at, a.published_at, a.created_at)) AS lastmod
      FROM categories c
      JOIN article_categories ac ON ac.category_id = c.id
      JOIN articles a ON a.id = ac.article_id AND a.status = 'published'
@@ -1682,12 +1750,18 @@ app.get("/sitemap.xml", ah(async (req, res) => {
      ORDER BY c.slug`
   );
 
-  const newestArticle = articles[0]?.published_at || articles[0]?.created_at || null;
+  const newestArticle = articles.reduce((newest, article) => {
+    const value = article.updated_at || article.published_at || article.created_at;
+    return !newest || value > newest ? value : newest;
+  }, null);
   const day = (value) => (value ? new Date(value).toISOString().slice(0, 10) : null);
 
   const urls = [
     { loc: `${origin}/`, lastmod: day(newestArticle), changefreq: "daily", priority: "1.0" },
     { loc: `${origin}/categorias`, lastmod: day(newestArticle), changefreq: "weekly", priority: "0.5" },
+    { loc: `${origin}/sobre`, changefreq: "monthly", priority: "0.5" },
+    { loc: `${origin}/metodologia-editorial`, changefreq: "monthly", priority: "0.5" },
+    { loc: `${origin}/autoria`, changefreq: "monthly", priority: "0.5" },
     ...categories.map((category) => ({
       loc: `${origin}/categoria/${category.slug}`,
       lastmod: day(category.lastmod),
@@ -1696,7 +1770,7 @@ app.get("/sitemap.xml", ah(async (req, res) => {
     })),
     ...articles.map((article) => ({
       loc: `${origin}/analisis/${article.slug}`,
-      lastmod: day(article.published_at || article.created_at),
+      lastmod: day(article.updated_at || article.published_at || article.created_at),
       changefreq: "monthly",
       priority: "0.9",
     })),

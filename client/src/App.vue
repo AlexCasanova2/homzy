@@ -18,6 +18,9 @@
         <div>
           <h4>Lector</h4>
           <ul class="footer-links">
+            <li><RouterLink to="/sobre">Sobre Homzy</RouterLink></li>
+            <li><RouterLink to="/metodologia-editorial">Metodología</RouterLink></li>
+            <li><RouterLink to="/autoria">Autoría</RouterLink></li>
             <li><RouterLink to="/privacidad">Privacidad</RouterLink></li>
             <li><RouterLink to="/cookies">Cookies</RouterLink></li>
             <li><RouterLink to="/terminos">Términos</RouterLink></li>

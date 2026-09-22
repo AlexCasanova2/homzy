@@ -15,11 +15,11 @@ fechas se gestionan en **Admin > Roadmap**, que es la fuente de verdad actualiza
 
 ## Semanas 1-2: base y oportunidades inmediatas
 
-- [ ] Optimizar Midea 20 L WiFi, COMFEE Easy Dry 20 L, Philips Serie 900, Levoit Core 200S y el sofá cama de 2 metros.
-- [ ] Añadir entre 3 y 5 enlaces internos contextuales a los artículos prioritarios.
-- [ ] Completar descripción, título SEO y metadescripción de las cinco categorías principales.
-- [ ] Crear las páginas Sobre Homzy, Metodología editorial y Autoría.
-- [ ] Añadir datos estructurados `Article` con autor y fechas.
+- [x] Optimizar Midea 20 L WiFi, COMFEE Easy Dry 20 L, Philips Serie 900, Levoit Core 200S y el sofá cama de 2 metros.
+- [x] Añadir entre 3 y 5 enlaces internos contextuales a los artículos prioritarios.
+- [x] Completar descripción, título SEO y metadescripción de las cinco categorías principales.
+- [x] Crear las páginas Sobre Homzy, Metodología editorial y Autoría.
+- [x] Añadir datos estructurados `Article` con autor y fechas.
 - [ ] Solicitar manualmente la indexación de PETLIBRO Dockstream, Xiaomi Smart Band 10, Cecotec Bolero Dresscode 8500, Tapo C200P2 y PetSafe StreamSide.
 - [ ] Revisar las ocho URLs con canónica corregida después de un nuevo rastreo.
 

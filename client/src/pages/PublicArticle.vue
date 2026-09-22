@@ -45,6 +45,10 @@
             <ClockIcon :size="16" />
             <span>{{ readTime(article?.html) }} min de lectura</span>
           </div>
+          <RouterLink to="/autoria" class="meta-item author-link">
+            <UserRoundIcon :size="16" />
+            <span>Equipo editorial de Homzy</span>
+          </RouterLink>
           <div v-if="categoryName(article?.category_id)" class="meta-item category-tag">
             <TagIcon :size="16" />
             <span>{{ categoryName(article?.category_id) }}</span>
@@ -127,6 +131,7 @@ import {
   ClockIcon, 
   TagIcon, 
   ListIcon,
+  UserRoundIcon,
 } from "lucide-vue-next";
 
 const route = useRoute();
@@ -210,6 +215,7 @@ async function loadRelated(articleId, requestId) {
 
 async function loadArticle(slug) {
   const currentRequest = ++requestNumber;
+  const categoriesRequest = categories.value.length ? null : loadCategories().catch(() => {});
   article.value = null;
   toc.value = [];
   relatedArticles.value = [];
@@ -219,6 +225,7 @@ async function loadArticle(slug) {
   readingProgress.value = 0;
   try {
     const { data } = await api.get(`/articles/${slug}`);
+    if (categoriesRequest) await categoriesRequest;
     if (currentRequest !== requestNumber) return;
     article.value = data;
     // Mantén la canónica renderizada por el servidor hasta tener listas las metas
@@ -300,6 +307,27 @@ function injectStructuredData() {
   const art = article.value;
   if (!art) return;
   const blocks = [];
+  const origin = window.location.origin;
+  const canonical = art.canonical_url || `${origin}/analisis/${art.slug}`;
+
+  blocks.push({
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: art.title,
+    ...(art.meta_description ? { description: art.meta_description } : {}),
+    ...(art.image_url ? { image: [art.image_url] } : {}),
+    datePublished: art.published_at || art.created_at,
+    dateModified: art.updated_at || art.published_at || art.created_at,
+    mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
+    inLanguage: "es-ES",
+    author: { "@type": "Organization", name: "Equipo editorial de Homzy", url: `${origin}/autoria` },
+    publisher: {
+      "@type": "Organization",
+      name: "Homzy",
+      url: `${origin}/`,
+      logo: { "@type": "ImageObject", url: `${origin}/apple-touch-icon.png` },
+    },
+  });
 
   if (art.product) {
     const price = parsePriceEuro(art.product.price);
@@ -324,15 +352,32 @@ function injectStructuredData() {
         ? { aggregateRating: { "@type": "AggregateRating", ratingValue: art.product.rating, reviewCount: art.product.reviews, bestRating: 5 } }
         : {}),
       ...(price
-        ? { offers: { "@type": "Offer", price, priceCurrency: "EUR", availability: "https://schema.org/InStock", url: window.location.href } }
+        ? { offers: { "@type": "Offer", price, priceCurrency: "EUR", url: canonical } }
         : {}),
+    });
+  }
+
+  if (breadcrumb.value.length) {
+    blocks.push({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Inicio", item: `${origin}/` },
+        ...breadcrumb.value.map((crumb, index) => ({
+          "@type": "ListItem",
+          position: index + 2,
+          name: crumb.name,
+          item: `${origin}/categoria/${crumb.slug}`,
+        })),
+        { "@type": "ListItem", position: breadcrumb.value.length + 2, name: art.title, item: canonical },
+      ],
     });
   }
 
   const rootEl = articleContent.value;
   if (rootEl) {
     const faqHeading = [...rootEl.querySelectorAll("h2")].find((h) => /preguntas frecuentes|faq/i.test(h.textContent));
-    const sectionEl = faqHeading?.closest("section") || faqHeading?.parentElement;
+    const sectionEl = faqHeading?.closest("section");
     if (sectionEl) {
       const items = [...sectionEl.querySelectorAll("h3")]
         .map((h3) => {
@@ -457,7 +502,6 @@ watch(() => route.params.slug, (slug) => {
 
 onMounted(() => {
   window.addEventListener('scroll', updateProgress);
-  loadCategories().catch(() => {});
 });
 
 onUnmounted(() => {
