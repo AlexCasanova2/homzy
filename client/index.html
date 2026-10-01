@@ -24,7 +24,15 @@
       window.googlefc.callbackQueue = window.googlefc.callbackQueue || [];
       window.googlefc.callbackQueue.push({
         CONSENT_MODE_DATA_READY: function () {
-          var consent = window.googlefc.getGoogleConsentModeValues();
+          var values = window.googlefc.getGoogleConsentModeValues();
+          // La API de Funding Choices devuelve estados numéricos (1 = concedido).
+          // Un 4 significa «no configurado», no equivale a consentimiento.
+          var consent = {
+            ad_storage: values.adStoragePurposeConsentStatus === 1 ? 'granted' : 'denied',
+            analytics_storage: values.analyticsStoragePurposeConsentStatus === 1 ? 'granted' : 'denied',
+            ad_user_data: values.adUserDataPurposeConsentStatus === 1 ? 'granted' : 'denied',
+            ad_personalization: values.adPersonalizationPurposeConsentStatus === 1 ? 'granted' : 'denied'
+          };
           gtag('consent', 'update', consent);
           window.homzyConsent = consent;
 
