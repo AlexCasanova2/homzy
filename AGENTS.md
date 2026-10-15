@@ -9,9 +9,11 @@
 - Development: `npm run dev` (API on 5177, Vite on 5173).
 - Client build: `npm run build`.
 - Server tests: `npm --prefix server test`.
+- Client tests: `npm --prefix client test` (Node test runner; consent logic and the real Vue/TipTap editor mounted in jsdom).
+- Editor browser check: start the client only and open `/test/fixtures/richTextEditor.html`; this isolated form saves to memory, never to the API.
 - One test file: `npm --prefix server test -- test/articleGenerator.test.js`.
 - Tests by name: `npm --prefix server test -- --test-name-pattern="resolveLlmConfig"`.
-- `npm run lint` only prints `no lint configured` in both packages. There is no configured client test, formatter, or typecheck command; do not treat lint success as verification.
+- `npm run lint` only prints `no lint configured` in both packages. There is no configured formatter or typecheck command; do not treat lint success as verification.
 - The server suite covers article generation plus affiliate URL and HTML-sanitization helpers, but not HTTP route authorization or browser flows.
 
 ## Database And Environment

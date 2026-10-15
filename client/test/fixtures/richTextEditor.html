@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prueba local del editor HTML</title>
+  </head>
+  <body>
+    <h1>Prueba local del editor</h1>
+    <p>Formulario aislado, sin peticiones a la API ni publicación de contenido.</p>
+    <div id="app"></div>
+    <script type="module">
+      import { createApp, h, ref } from 'vue';
+      import RichTextEditor from '../../src/components/RichTextEditor.vue';
+
+      const original = '<article><section class="verdict-box"><h2>Veredicto rápido</h2><ul class="takeaways"><li>Dato de prueba</li></ul></section><figure><img src="https://example.com/product.jpg" alt="Producto" loading="lazy" /></figure><table><caption>Comparativa</caption><tbody><tr><th scope="row">Depósito</th><td>3 L</td></tr></tbody></table><p><a href="/analisis/alternativa">Alternativa</a></p></article>';
+      const html = ref(original);
+      const saved = ref('');
+      const updates = ref(0);
+      createApp({
+        setup: () => () => h('div', [
+          h(RichTextEditor, {
+            modelValue: html.value,
+            'onUpdate:modelValue': value => { html.value = value; updates.value += 1; },
+          }),
+          h('button', { onClick: () => { saved.value = html.value; } }, 'Guardar solo en memoria'),
+          h('button', { onClick: () => { html.value = '<p>Texto sencillo</p>'; } }, 'Cargar texto sencillo'),
+          h('output', { id: 'result' }, JSON.stringify({ html: html.value, saved: saved.value, updates: updates.value })),
+        ]),
+      }).mount('#app');
+      window.editorFixtureOriginal = original;
+    </script>
+  </body>
+</html>

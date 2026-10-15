@@ -1,7 +1,7 @@
 <template>
   <div v-if="editor" class="editor-container">
     <div class="editor-toolbar">
-      <button type="button" @click="sourceMode = !sourceMode" :class="{ 'is-active': sourceMode }" title="Editar HTML sin alterar la estructura">
+      <button type="button" @click="sourceMode = !sourceMode" :class="{ 'is-active': sourceMode }" :aria-pressed="sourceMode" :disabled="sourceMode && requiresHtmlMode" title="Editar HTML sin alterar la estructura">
         HTML
       </button>
       <template v-if="!sourceMode">
@@ -92,6 +92,9 @@
       </button>
       </template>
     </div>
+    <p v-if="requiresHtmlMode" class="source-mode-hint" role="status">
+      Este contenido se edita en HTML para conservar su estructura, imágenes y atributos. El modo visual no puede representar todos sus elementos.
+    </p>
     <textarea
       v-if="sourceMode"
       v-model="sourceValue"
@@ -134,8 +137,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
-const sourceMode = ref(/<(article|section|figure|picture|div|span)\b/i.test(props.modelValue))
+const sourceMode = ref(false)
 const sourceValue = ref(props.modelValue)
+const requiresHtmlMode = ref(false)
 
 const editor = useEditor({
   content: props.modelValue,
@@ -153,17 +157,25 @@ const editor = useEditor({
     TableCell,
   ],
   onUpdate: ({ editor }) => {
-    emit('update:modelValue', editor.getHTML())
+    if (!sourceMode.value) emit('update:modelValue', editor.getHTML())
   },
 })
 
-watch(() => props.modelValue, (value) => {
+watch([() => props.modelValue, editor], ([value, instance]) => {
   sourceValue.value = value
-  if (!editor.value) return
-  const isSame = editor.value.getHTML() === value
-  if (isSame) return
-  editor.value.commands.setContent(value, false)
-})
+  if (!instance) return
+  if (instance.getHTML() !== value) {
+    instance.commands.setContent(value, { emitUpdate: false })
+  }
+
+  // Comparar el DOM evita depender de una lista incompleta de etiquetas. El
+  // original sigue siendo la fuente de verdad, no la versión reducida de TipTap.
+  const parser = new DOMParser()
+  const original = parser.parseFromString(value, 'text/html')
+  const visual = parser.parseFromString(instance.getHTML(), 'text/html')
+  requiresHtmlMode.value = value.trim() !== '' && !original.isEqualNode(visual)
+  if (requiresHtmlMode.value) sourceMode.value = true
+}, { immediate: true })
 </script>
 
 <style>
@@ -246,6 +258,13 @@ watch(() => props.modelValue, (value) => {
   border: 0;
   resize: vertical;
   font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.source-mode-hint {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--text-muted, #475569);
+  font-size: 13px;
 }
 
 /* TipTap Basic Styles */
