@@ -15,6 +15,12 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install root tooling
+        run: npm ci
+
+      - name: Run tooling tests
+        run: npm test
+
       - name: Install server dependencies
         run: npm --prefix server install
 
@@ -23,6 +29,9 @@ jobs:
 
       - name: Install client dependencies
         run: npm --prefix client install
+
+      - name: Run client tests
+        run: npm --prefix client test
 
       - name: Build client
         run: npm --prefix client run build

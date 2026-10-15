@@ -8,6 +8,7 @@
 ## Commands
 - Development: `npm run dev` (API on 5177, Vite on 5173).
 - Client build: `npm run build`.
+- Root tooling tests: `npm test` (shell quoting and the concurrently CLI; no API or database).
 - Server tests: `npm --prefix server test`.
 - Client tests: `npm --prefix client test` (Node test runner; consent logic and the real Vue/TipTap editor mounted in jsdom).
 - Editor browser check: start the client only and open `/test/fixtures/richTextEditor.html`; this isolated form saves to memory, never to the API.
